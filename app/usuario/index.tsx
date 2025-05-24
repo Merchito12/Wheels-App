@@ -133,9 +133,7 @@ export default function Index() {
                   style={styles.image}
                 />
                 <Text style={styles.tripName}>{viaje.direccion}</Text>
-                <Text style={styles.conductorName}>
-                  Conductor: {viaje.conductor || "Desconocido"}
-                </Text>
+              
                 <Text style={styles.tripPrice}>€ {viaje.precio}</Text>
 
                 <View style={styles.row}>

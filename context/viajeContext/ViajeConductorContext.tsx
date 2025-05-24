@@ -33,7 +33,10 @@ export interface Viaje {
   precio: string;
   puntos: Punto[];
   estado: EstadoViaje;
+  cuposDisponibles: number; 
 }
+
+interface NuevoViajeInput extends Omit<Viaje, "id" | "puntos" | "idConductor" | "conductor"> {}
 
 interface ViajeContextProps {
   viajes: Viaje[];
@@ -44,8 +47,10 @@ interface ViajeContextProps {
     estado: EstadoPunto
   ) => Promise<Punto[]>;
   crearViaje: (
-    nuevoViaje: Omit<Viaje, "id" | "puntos" | "idConductor" | "conductor">
+    nuevoViaje: NuevoViajeInput
   ) => Promise<string>;
+  reservarCupo: (viajeId: string) => Promise<void>;
+  liberarCupo: (viajeId: string) => Promise<void>;
   obtenerPuntosPorEstado: (
     estado: EstadoPunto
   ) => Promise<{ viajeId: string; viajeDireccion: string; punto: Punto }[]>;
@@ -66,7 +71,7 @@ export const ViajeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const viajesArray: Viaje[] = [];
       querySnapshot.forEach((doc) => {
-        const { id, ...data } = doc.data() as Viaje;
+        const data = doc.data() as Omit<Viaje, "id">;
         viajesArray.push({ id: doc.id, ...data });
       });
       setViajes(viajesArray);
@@ -76,7 +81,7 @@ export const ViajeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [user]);
 
   const crearViaje = async (
-    nuevoViaje: Omit<Viaje, "id" | "puntos" | "idConductor" | "conductor">
+    nuevoViaje: NuevoViajeInput
   ): Promise<string> => {
     if (!user) throw new Error("No hay usuario logueado");
 
@@ -105,7 +110,7 @@ export const ViajeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const viajesFiltrados: Viaje[] = [];
     querySnapshot.forEach((doc) => {
-      const { id, ...data } = doc.data() as Viaje;
+      const data = doc.data() as Omit<Viaje, "id">;
       viajesFiltrados.push({ id: doc.id, ...data });
     });
     return viajesFiltrados;
@@ -121,7 +126,7 @@ export const ViajeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const solicitudes: { viaje: Viaje; punto: Punto }[] = [];
   
     querySnapshot.forEach((doc) => {
-      const { id, ...data } = doc.data() as Viaje;
+      const data = doc.data() as Omit<Viaje, "id">;
       const viaje = { id: doc.id, ...data };
       viaje.puntos.forEach((punto) => {
         solicitudes.push({ viaje, punto });
@@ -170,7 +175,46 @@ export const ViajeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     
     return resultados;
   };
-  
+
+  const reservarCupo = async (viajeId: string): Promise<void> => {
+    const viajeDocRef = doc(db, "viajes", viajeId);
+    const viajeSnap = await getDoc(viajeDocRef);
+
+    if (!viajeSnap.exists()) throw new Error("Viaje no existe");
+
+    const viajeData = viajeSnap.data() as Viaje;
+
+    if (viajeData.cuposDisponibles <= 0) {
+      throw new Error("No hay cupos disponibles");
+    }
+
+    const nuevosCupos = viajeData.cuposDisponibles - 1;
+    const nuevoEstado: EstadoViaje = nuevosCupos === 0 ? "finalizado" : viajeData.estado;
+
+    await updateDoc(viajeDocRef, {
+      cuposDisponibles: nuevosCupos,
+      estado: nuevoEstado,
+    });
+  };
+
+  const liberarCupo = async (viajeId: string): Promise<void> => {
+    const viajeDocRef = doc(db, "viajes", viajeId);
+    const viajeSnap = await getDoc(viajeDocRef);
+
+    if (!viajeSnap.exists()) throw new Error("Viaje no existe");
+
+    const viajeData = viajeSnap.data() as Viaje;
+
+    const nuevosCupos = viajeData.cuposDisponibles + 1;
+
+    const nuevoEstado: EstadoViaje = viajeData.estado === "finalizado" ? "por iniciar" : viajeData.estado;
+
+    await updateDoc(viajeDocRef, {
+      cuposDisponibles: nuevosCupos,
+      estado: nuevoEstado,
+    });
+  };
+
   return (
     <ViajeContext.Provider
       value={{
@@ -179,6 +223,8 @@ export const ViajeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         viajesFiltradosPorEstado,
         solicitudesDePuntos,
         solicitudesDePuntosPorEstado,
+        reservarCupo,
+        liberarCupo,
         obtenerPuntosPorEstado,
       }}
     >

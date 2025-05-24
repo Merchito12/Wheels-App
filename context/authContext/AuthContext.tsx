@@ -6,62 +6,60 @@ import {
   signOut,
   User,
 } from "firebase/auth";
-import { auth } from "../../utils/FirebaseConfig";
-import { db, storage } from "../../utils/FirebaseConfig";
+import { auth, db, storage } from "../../utils/FirebaseConfig";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
-// Interfaz para el carro
 interface Car {
   plate: string | null;
   color: string | null;
   brand: string | null;
   seats: number | null;
-  photoURL: string | null; // URL de la foto del carro
+  photoURL: string | null;
 }
 
-// Interfaz para el contexto de autenticación
 interface AuthContextProps {
   user: User | null;
   userName: string | null;
   userEmail: string | null;
   userRole: string | null;
-  profilePhotoURL: string | null; // Foto de perfil del usuario
-  car: Car | null; // Información del carro
+  profilePhotoURL: string | null;
+  car: Car | null;
   login: (email: string, password: string) => Promise<void>;
   signUp: (
     email: string,
     password: string,
     name: string,
-    profilePhotoURI: string | null, // URI local o remota de la foto perfil para subir
+    profilePhotoURI: string | null,
     car: Car | null,
     role: string
   ) => Promise<void>;
   logout: () => Promise<void>;
 }
 
-// Crear el contexto
 const AuthContext = createContext<AuthContextProps>({} as AuthContextProps);
 
-// Custom hook para usar el contexto
 export const useAuth = () => useContext(AuthContext);
 
-// Función genérica para subir imagen a Firebase Storage
-const uploadImage = async (uri: string, folder: string, id: string) => {
+// Función para subir imagen a Firebase Storage y obtener URL pública
+const uploadImageToStorage = async (uri: string, folder: string, id: string) => {
   try {
-    const storageRef = ref(storage, `${folder}/${id}_${Date.now()}`);
     const response = await fetch(uri);
     const blob = await response.blob();
+
+    const storageRef = ref(storage, `${folder}/${id}_${Date.now()}`);
+
     await uploadBytes(storageRef, blob);
-    const url = await getDownloadURL(storageRef);
-    return url;
+
+    const downloadURL = await getDownloadURL(storageRef);
+
+    return downloadURL;
   } catch (error) {
-    console.error("Error al subir la imagen:", error);
+    console.error("Error uploading image:", error);
     return "";
   }
 };
 
-// Proveedor del contexto de autenticación
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
@@ -81,12 +79,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           const data = userDoc.data();
           setUserName(data?.name || null);
           setUserEmail(currentUser.email || null);
-          setUserRole(data?.role || "user");
+          setUserRole(data?.role || null);
           setProfilePhotoURL(data?.profilePhotoURL || null);
           setCar(data?.car || null);
         }
       } else {
-        // Si no hay usuario logueado, limpiar estados
         setUserName(null);
         setUserEmail(null);
         setUserRole(null);
@@ -118,36 +115,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       );
       const firebaseUser = userCredential.user;
 
-      // Subir foto de perfil si existe
+      // Subir foto de perfil (si hay URI y no es la URL por defecto)
       let uploadedProfilePhotoURL = "";
-      if (profilePhotoURI) {
-        uploadedProfilePhotoURL = await uploadImage(
+      if (
+        profilePhotoURI &&
+        !profilePhotoURI.startsWith("https://firebasestorage.googleapis.com")
+      ) {
+        uploadedProfilePhotoURL = await uploadImageToStorage(
           profilePhotoURI,
-          "profilePhotos",
+          "perfilphotos",
           firebaseUser.uid
         );
+      } else {
+        uploadedProfilePhotoURL = profilePhotoURI || "";
       }
 
-      // Subir foto del carro si es conductor y tiene foto
+      // Subir foto del carro si es conductor y tiene foto que no es URL ya subida
       let uploadedCarPhotoURL = "";
-      if (role === "Conductor" && car && car.photoURL) {
-        uploadedCarPhotoURL = await uploadImage(
+      if (
+        role === "Conductor" &&
+        car &&
+        car.photoURL &&
+        !car.photoURL.startsWith("https://firebasestorage.googleapis.com")
+      ) {
+        uploadedCarPhotoURL = await uploadImageToStorage(
           car.photoURL,
           "carPhotos",
           firebaseUser.uid
         );
+      } else if (car) {
+        uploadedCarPhotoURL = car?.photoURL || "";
       }
 
-      // Guardar datos en Firestore
+      // Guardar usuario en Firestore
       await setDoc(doc(db, "users", firebaseUser.uid), {
         name,
         email,
         uid: firebaseUser.uid,
         role,
-        profilePhotoURL: uploadedProfilePhotoURL || null,
+        profilePhotoURL: uploadedProfilePhotoURL,
         car:
-          role === "Conductor" && car
-            ? { ...car, photoURL: uploadedCarPhotoURL || car.photoURL }
+          role === "Conductor"
+            ? { ...car, photoURL: uploadedCarPhotoURL }
             : null,
       });
 
@@ -155,10 +164,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setUserName(name);
       setUserEmail(email);
       setUserRole(role);
-      setProfilePhotoURL(uploadedProfilePhotoURL || null);
+      setProfilePhotoURL(uploadedProfilePhotoURL);
       setCar(role === "Conductor" ? car : null);
     } catch (error) {
       console.error("Error al registrar usuario:", error);
+      throw error;
     }
   };
 

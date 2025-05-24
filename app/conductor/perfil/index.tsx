@@ -10,7 +10,7 @@ export default function Ajustes() {
   const router = useRouter();
   const { logout } = useAuth(); // Usando el logout desde el contexto
   const [isModalVisible, setIsModalVisible] = useState(false); // Estado para controlar la visibilidad del modal
-  const { userName } = useAuth(); // Obtener el nombre del usuario logueado
+  const { userName ,profilePhotoURL} = useAuth(); // Obtener el nombre del usuario logueado
  
   const navigateToEdit = () => {
     router.push('./perfil/editarPerfil');
@@ -40,7 +40,7 @@ export default function Ajustes() {
       {/* Imagen de perfil y texto debajo */}
       <View style={styles.profileContainer}>
         <Image
-          source={require("../../../assets/images/defaultUser.png")}  
+          source={{uri: profilePhotoURL || 'https://via.placeholder.com/100'}} // Imagen de perfil, usa una imagen por defecto si no hay URL
           style={styles.profileImage}
         />
         <Text style={styles.profileName}>{userName ? userName.charAt(0).toUpperCase() + userName.slice(1) : ''}</Text>

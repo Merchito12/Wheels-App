@@ -16,10 +16,14 @@ import colors from "@/styles/Colors";
 import { router } from "expo-router";
 
 export default function CrearViaje() {
-  const { user } = useAuth();
+  
   const { crearViaje } = useViajes();
 
-  const [fecha, setFecha] = useState("");  // ahora texto
+  const { user, car } = useAuth();
+  const seats = car?.seats ?? 1;  // valor por defecto 1
+
+
+   const [fecha, setFecha] = useState("");  // ahora texto
   const [hora, setHora] = useState("");    // ahora texto
   const [precio, setPrecio] = useState("15.00");
   const [origen, setOrigen] = useState("");
@@ -57,6 +61,7 @@ export default function CrearViaje() {
       horaSalida: hora.trim(),
       precio: precio,
       estado: "por iniciar" as const,
+      cuposDisponibles:seats , // Asignar un valor por defecto
     };
   
     try {
