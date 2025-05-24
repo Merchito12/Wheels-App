@@ -114,15 +114,13 @@ const styles = StyleSheet.create({
     fontSize: 16,     
   },
   tabBarIconStyle: {
-    fontSize: 30,          
+    fontSize: 30, 
   },
   tabBarStyle: {
     height: 80,           
-    paddingTop: 10,        
-    paddingBottom: 10,  
-    marginBottom: 20,   
+    padding: 20,        
   },
   tabBarLabel: {
-    fontSize: 14,
+    fontSize: 10,
   },
 });
