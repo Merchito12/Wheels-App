@@ -96,13 +96,16 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   mainButton: {
-    backgroundColor: colors.blue, // Azul
-    paddingVertical: 14,
-    borderRadius: 12,
+    backgroundColor: colors.blue,
+    paddingVertical: 15,
+    borderRadius: 8,
     alignItems: "center",
-    width: "85%",
-    position: "absolute",  // Asegura que el botón esté en la parte inferior
-    bottom: 30,  // Ajusta la distancia desde el fondo
+    marginVertical: 10,
+    width: "100%",
+    justifyContent: "center",
+
+    flexDirection: "row",
+
   },
   mainButtonText: {
     color: colors.white, // Blanco

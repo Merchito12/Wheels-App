@@ -7,9 +7,13 @@ import {
   StyleSheet, 
   Animated, 
   ScrollView, 
-  Alert ,
-  Image
+  Alert,
+  Image,
+  ActivityIndicator
 } from "react-native";
+// al comienzo del archivo añade esto
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 
 interface Car {
   plate: string | null;
@@ -18,14 +22,20 @@ interface Car {
   seats: number | null;
   photoURL: string | null;
 }
+
 import { MaterialIcons } from "@expo/vector-icons";
 import colors from "../../styles/Colors"; // Usando los colores definidos
 import { Redirect, router } from "expo-router";
-import Loader from "@/components/Loader"; // Asumimos que tienes un componente Loader para mostrar el loading
 import * as ImagePicker from 'expo-image-picker'; // Librería para seleccionar imagen
 import { useAuth } from "../../context/authContext/AuthContext"; // Contexto de autenticación
 
-
+// Componente Loader simple dentro de este archivo
+const Loader = () => (
+  <View style={styles.loaderContainer}>
+    <ActivityIndicator size="large" color={colors.blue} />
+    <Text style={styles.loaderText}>Estamos configurando tu perfil...</Text>
+  </View>
+);
 
 export function Register() {
   const [step, setStep] = useState(0);  // Para controlar las diferentes vistas
@@ -47,53 +57,51 @@ export function Register() {
   const [seats, setSeats] = useState(""); // Para guardar la cantidad de asientos del carro
   
   const {  signUp } = useAuth();
-  
-
-
-
 
   const handleNext = async () => {
     if (step === 2) {
       try {
         setIsLoading(true);
-        
-        // Asegúrate de que todos los valores estén definidos y no sean vacíos
-        console.log("Plate:", plate);
-        console.log("Color:", color);
-        console.log("Brand:", brand);
-        console.log("Seats:", seats);
-        console.log("Image:", image);
-        
-        if (!plate || !color || !brand || !seats) {
-          Alert.alert("Error", "Todos los campos son obligatorios.");
+  
+        if (!userName || !userEmail || !password) {
+          Alert.alert("Error", "Por favor completa todos los campos de usuario.");
+          setIsLoading(false);
           return;
         }
-        
-        // Preparamos los datos del carro
-        const carData: Car = {
-          plate: plate,
-          color: color,
-          brand: brand,
-          seats: parseInt(seats, 10),
-          photoURL: image || "",  // Si no hay imagen, asignamos una cadena vacía
-        };
-        
-        console.log("Car Data:", carData); // Verifica si carData tiene los valores correctos
-        
-        // Registrar el usuario (con o sin el carro dependiendo del rol)
-        await signUp(userEmail, password, userName, carData, role);
-        
-        setTimeout(() => {
-          setIsRedirecting(true); // Redirige después de 4 segundos
+  
+        if (!termsAccepted) {
+          Alert.alert("Error", "Debes aceptar los términos y condiciones.");
           setIsLoading(false);
-        }, 4000);
-        
+          return;
+        }
+  
+        if (role === "Conductor") {
+          if (!plate || !color || !brand || !seats) {
+            Alert.alert("Error", "Todos los campos del vehículo son obligatorios.");
+            setIsLoading(false);
+            return;
+          }
+        }
+  
+        const carData: Car = {
+          plate: plate || null,
+          color: color || null,
+          brand: brand || null,
+          seats: seats ? parseInt(seats, 10) : null,
+          photoURL: image || null,
+        };
+  
+        await signUp(userEmail, password, userName, carData, role);
+  
+        setIsRedirecting(true);
       } catch (error) {
         console.error("Error al registrar el usuario:", error);
         Alert.alert("Error", "No se pudo registrar el usuario.");
+      } finally {
+        setIsLoading(false);
       }
     } else {
-      setStep(step + 1);
+      setStep((prev) => prev + 1);
       Animated.timing(progress, {
         toValue: (step + 1) * 33,
         duration: 500,
@@ -103,7 +111,6 @@ export function Register() {
   };
   
   
-
   const handleBack = () => {
     if (step > 0) {
       setStep(step - 1); // Retrocede un paso
@@ -114,6 +121,7 @@ export function Register() {
       }).start();
     }
   };
+
   const handleImagePicker = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) {
@@ -121,17 +129,20 @@ export function Register() {
       return;
     }
   
-    let result = await ImagePicker.launchImageLibraryAsync({
+    const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [4, 3],
       quality: 1,
     });
   
-    if (!result.canceled) {
-      setImage(result.assets[0].uri); // Establecer la URI de la imagen seleccionada
+    if (!result.canceled && result.assets.length > 0) {
+      const uri = result.assets[0].uri;
+      setImage(uri);
+      await AsyncStorage.setItem("localPhotoUri", uri);
     }
   };
+  
   
   const handleCamera = async () => {
     const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
@@ -150,15 +161,19 @@ export function Register() {
       setImage(result.assets[0].uri); // Establecer la URI de la imagen tomada
     }
   };
-  
 
-  if (isRedirecting) {
-    if (role === "Conductor") {
-      return <Redirect href="/conductor" />;
-    } else {
-      return <Redirect href="/usuario" />;
+  useEffect(() => {
+    if (isRedirecting) {
+      const timeout = setTimeout(() => {
+        if (role === "Conductor") {
+          router.replace("./conductor");
+        } else {
+          router.replace("./usuario");
+        }
+      }, 1000);
+      return () => clearTimeout(timeout);
     }
-  }
+  }, [isRedirecting, role]);
   
 
   if (redirect) {
@@ -187,11 +202,7 @@ export function Register() {
   return (
     <View style={styles.container}>
       {isLoading ? (
-        // Solo mostramos el loader y mensaje
-        <View style={styles.loaderContainer}>
-          <Loader />
-          <Text style={styles.loaderText}>Estamos configurando tu perfil...</Text>
-        </View>
+        <Loader />
       ) : (
         <>
           {/* Barra de Progreso con Animación */}
@@ -311,108 +322,97 @@ export function Register() {
                     <MaterialIcons name="check" size={24} color={colors.blue} />
                   )}
                 </TouchableOpacity>
-                {/* <Text style={styles.inputLabel}>Importante: Independientemente del rol que escojas, más adelante podrás cambiarlo</Text> */}
-
               </View>
-              
-              
             )}
 
             {/* Paso 3 - Información del carro */}
-            {/* Paso 3 - Información del carro */}
-{step === 2 && role === "Conductor" && (
-  <View style={styles.form}>
-    <Text style={styles.inputLabel}>Placa</Text>
-    <TextInput
-      style={[
-        styles.input,
-        focusedInput === "plate" && styles.inputFocused,
-      ]}
-      placeholder="ABC123"
-      placeholderTextColor={colors.grey}
-      onFocus={() => handleFocus("plate")}
-      onBlur={handleBlur}
-      value={plate}
-      onChangeText={setPlate} // Actualiza el estado para la placa
-    />
+            {step === 2 && role === "Conductor" && (
+              <View style={styles.form}>
+                <Text style={styles.inputLabel}>Placa</Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    focusedInput === "plate" && styles.inputFocused,
+                  ]}
+                  placeholder="ABC123"
+                  placeholderTextColor={colors.grey}
+                  onFocus={() => handleFocus("plate")}
+                  onBlur={handleBlur}
+                  value={plate}
+                  onChangeText={setPlate} // Actualiza el estado para la placa
+                />
 
-    <Text style={styles.inputLabel}>Marca del Carro</Text>
-    <TextInput
-      style={[
-        styles.input,
-        focusedInput === "brand" && styles.inputFocused,
-      ]}
-      placeholder="Toyota"
-      placeholderTextColor={colors.grey}
-      onFocus={() => handleFocus("brand")}
-      onBlur={handleBlur}
-      value={brand}
-      onChangeText={setBrand} // Actualiza el estado para la marca
-    />
+                <Text style={styles.inputLabel}>Marca del Carro</Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    focusedInput === "brand" && styles.inputFocused,
+                  ]}
+                  placeholder="Toyota"
+                  placeholderTextColor={colors.grey}
+                  onFocus={() => handleFocus("brand")}
+                  onBlur={handleBlur}
+                  value={brand}
+                  onChangeText={setBrand} // Actualiza el estado para la marca
+                />
 
-    <Text style={styles.inputLabel}>Color del Carro</Text>
-    <TextInput
-      style={[
-        styles.input,
-        focusedInput === "color" && styles.inputFocused,
-      ]}
-      placeholder="Red"
-      placeholderTextColor={colors.grey}
-      onFocus={() => handleFocus("color")}
-      onBlur={handleBlur}
-      value={color}
-      onChangeText={setColor} // Actualiza el estado para el color
-    />
+                <Text style={styles.inputLabel}>Color del Carro</Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    focusedInput === "color" && styles.inputFocused,
+                  ]}
+                  placeholder="Red"
+                  placeholderTextColor={colors.grey}
+                  onFocus={() => handleFocus("color")}
+                  onBlur={handleBlur}
+                  value={color}
+                  onChangeText={setColor} // Actualiza el estado para el color
+                />
 
-    <Text style={styles.inputLabel}>Cantidad de Asientos Disponibles</Text>
-    <TextInput
-      style={[
-        styles.input,
-        focusedInput === "seats" && styles.inputFocused,
-      ]}
-      placeholder="4"
-      placeholderTextColor={colors.grey}
-      onFocus={() => handleFocus("seats")}
-      onBlur={handleBlur}
-      value={seats}
-      onChangeText={setSeats} // Actualiza el estado para los asientos
-      keyboardType="numeric" // Asegura que solo se ingresen números
-    />
+                <Text style={styles.inputLabel}>Cantidad de Asientos Disponibles</Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    focusedInput === "seats" && styles.inputFocused,
+                  ]}
+                  placeholder="4"
+                  placeholderTextColor={colors.grey}
+                  onFocus={() => handleFocus("seats")}
+                  onBlur={handleBlur}
+                  value={seats}
+                  onChangeText={setSeats} // Actualiza el estado para los asientos
+                  keyboardType="numeric" // Asegura que solo se ingresen números
+                />
 
-    <View style={styles.form}>
-      <Text style={styles.inputLabel}>Subir Foto del Vehículo</Text>
+                <View style={styles.form}>
+                  <Text style={styles.inputLabel}>Subir Foto del Vehículo</Text>
 
-      {/* Componente de imagen para la carga de foto */}
-      <TouchableOpacity style={styles.uploadButton} onPress={handleImagePicker}>
-        <View style={styles.uploadButtonContent}>
-          <MaterialIcons name="photo-camera" size={24} color={colors.white} />
-          <Text style={styles.uploadButtonText}>Subir Foto del Vehículo</Text>
-        </View>
-      </TouchableOpacity>
+                  <TouchableOpacity style={styles.uploadButton} onPress={handleImagePicker}>
+                    <View style={styles.uploadButtonContent}>
+                      <MaterialIcons name="photo-camera" size={24} color={colors.white} />
+                      <Text style={styles.uploadButtonText}>Subir Foto del Vehículo</Text>
+                    </View>
+                  </TouchableOpacity>
 
-      {image && <Image source={{ uri: image }} style={styles.selectedImage} />}
-    </View>
-  </View>
-)}
-
-
-
+                  {image && <Image source={{ uri: image }} style={styles.selectedImage} />}
+                </View>
+              </View>
+            )}
           </ScrollView>
 
           {/* Botones fijos abajo */}
           <View style={styles.buttonsContainer}>
-            
             {step == 0 && (
               <TouchableOpacity onPress={() => router.push("./")} style={[styles.mainButton, styles.backButton]}>
                 <Text style={styles.notAbleButtonText}>Iniciar Sesión</Text>
               </TouchableOpacity>
-            )
-            }{step > 0 && (
-                <TouchableOpacity onPress={handleBack} style={[styles.ableButton]}>
-                  <Text style={styles.buttonText}>Anterior</Text>
-                </TouchableOpacity>
-              )
-              }
+            )}
+            {step > 0 && (
+              <TouchableOpacity onPress={handleBack} style={[styles.ableButton]}>
+                <Text style={styles.buttonText}>Anterior</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity onPress={handleNext} style={styles.mainButton}>
               <Text style={styles.mainButtonText}>{step === 2 ? "Finalizar" : "Siguiente"}</Text>
             </TouchableOpacity>
@@ -434,7 +434,7 @@ const styles = StyleSheet.create({
     width: "100%",
     paddingTop: 20,
     top: 60,
-    zIndex: 1, // Asegura que la barra de progreso y título queden sobre el contenido
+    zIndex: 1,
     marginBottom: 20,
   },
   progressBarContainer: {
@@ -453,20 +453,20 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "600",
     color: colors.black,
-    marginTop: 10, // Espacio arriba del título
-    marginBottom: 10,  // Espacio abajo del título
+    marginTop: 10,
+    marginBottom: 10,
     textAlign: "left",
   },
   fixedSubtitle: {
     fontSize: 16,
     fontWeight: "400",
-    color: "#9E9E9E", // Gris para el subtítulo
-    marginBottom: 30, // Espacio abajo del subtítulo
-    marginTop: 0, // Espacio arriba del subtítulo
+    color: "#9E9E9E",
+    marginBottom: 30,
+    marginTop: 0,
     textAlign: "left",
   },
   formContainer: {
-    marginTop: 40,  // Esto asegura que el contenido no se solape con el contenido fijo arriba
+    marginTop: 40,
   },
   form: {
     width: "100%",
@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
     borderColor: "#EAEAEA",
   },
   inputFocused: {
-    borderColor: colors.blue,  // Bordes azules cuando el campo está enfocado
+    borderColor: colors.blue,
     borderWidth: 2,
   },
   uploadButton: {
@@ -505,7 +505,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 30,
   },
-  
   mainButton: {
     backgroundColor: colors.blue,
     paddingVertical: 14,
@@ -575,71 +574,67 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginBottom: 10,
     alignSelf: "flex-start",
-    
   },
-
   eyeIcon: {
     position: "absolute",
     right: 16,
     top: 165,
   },
-    loaderContainer: {
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-        backgroundColor: colors.white,
-    },
-    loaderText: {
-        fontSize: 16,
-        color: colors.black,
-        marginTop: 20,
-    },
-    
-      uploadButtonContent: {
-        flexDirection: "row",
-        alignItems: "center",
-      },
-      uploadButtonText: {
-        marginLeft: 10,
-        fontSize: 16,
-        color: colors.blue,
-      },
-      selectedImage: {
-        width: 150,
-        height: 150,
-        borderRadius: 10,
-        marginTop: 10,
-        alignSelf: "center",
-      },
-      roleSelectorContainer: {
-        justifyContent: "space-between",
-        width: "100%",
-        marginBottom: 20, // Ajustar el margen según necesites
-      },
-      // Estilos para los botones
-      roleButton: {
-        width: "100%",
-        backgroundColor: "#F8F8F8",
-        borderRadius: 12,
-        padding: 16,
-        fontSize: 16,
-        marginBottom: 10,
-        color: colors.black,
-        borderWidth: 1,
-        borderColor: "#EAEAEA",
-      },
-      roleButtonSelected: {
-        backgroundColor: colors.lightBlue, // Color de fondo cuando el botón está seleccionado
-        borderColor: colors.blue, // Color de borde cuando está seleccionado    
-      },
-      roleButtonText: {
-        color: colors.darkGrey,
-        fontSize: 16,
-        fontWeight: "600",
-      },
-      roleButtonTextSelected: {
-        color: colors.blue, // Cambia el color del texto a blanco
-      },
+  loaderContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: colors.white,
+  },
+  loaderText: {
+    fontSize: 16,
+    color: colors.black,
+    marginTop: 20,
+  },
+  uploadButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  uploadButtonText: {
+    marginLeft: 10,
+    fontSize: 16,
+    color: colors.blue,
+  },
+  selectedImage: {
+    width: 150,
+    height: 150,
+    borderRadius: 10,
+    marginTop: 10,
+    alignSelf: "center",
+  },
+  roleSelectorContainer: {
+    justifyContent: "space-between",
+    width: "100%",
+    marginBottom: 20,
+  },
+  roleButton: {
+    width: "100%",
+    backgroundColor: "#F8F8F8",
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    marginBottom: 10,
+    color: colors.black,
+    borderWidth: 1,
+    borderColor: "#EAEAEA",
+  },
+  roleButtonSelected: {
+    backgroundColor: colors.lightBlue,
+    borderColor: colors.blue,
+  },
+  roleButtonText: {
+    color: colors.darkGrey,
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  roleButtonTextSelected: {
+    color: colors.blue,
+  },
 });
 
 export default Register;
