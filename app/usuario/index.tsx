@@ -17,6 +17,9 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../utils/FirebaseConfig";
 
 import ModalReservaViaje from "../../components/modales/ModalReservaViaje";
+import { useAuth } from "../../context/authContext/AuthContext";
+import { router } from "expo-router";
+
 
 export default function Index() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -28,9 +31,37 @@ export default function Index() {
   const [conductorInfo, setConductorInfo] = useState<any>(null);
   const [cargandoConductor, setCargandoConductor] = useState(false);
 
-  const { obtenerViajesPorEstado } = useCliente();
+  const { obtenerViajesPorEstado, obtenerViajesPorEstadoViajeYEstadoPunto } = useCliente();
+
+  const { user } = useAuth();
+  const [viajeEnCurso, setViajeEnCurso] = useState<any>(null);
+
 
   const onChangeSearch = (query: string) => setSearchQuery(query);
+
+  useEffect(() => {
+    async function cargarViajeEnCurso() {
+      if (!user) return;
+      setLoading(true);
+      try {
+        // Función del contexto que devuelve viajes con estado 'en curso' y puntos con estado 'aceptado'
+        const viajesEnCurso = await obtenerViajesPorEstadoViajeYEstadoPunto("en curso", "aceptado");
+  
+        // Filtrar viajes donde exista un punto cuyo idCliente sea igual al user.uid
+        const viajeFiltrado = viajesEnCurso.find((viaje) =>
+          viaje.puntos.some((punto: any) => punto.idCliente === user.uid)
+        );
+  
+        setViajeEnCurso(viajeFiltrado || null);
+      } catch (error) {
+        console.error("Error cargando viaje en curso:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    cargarViajeEnCurso();
+  }, [user]);
+  
 
   useEffect(() => {
     async function cargarViajes() {
@@ -122,23 +153,32 @@ export default function Index() {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.headerContainer}>
-        <View style={styles.textContainer}>
-          <Text style={styles.headerTitle}>Viaje en Curso</Text>
-          <Text style={styles.headerSubtitle}>
-            {viajesPorIniciar.length > 0
-              ? `${viajesPorIniciar[0].fecha}, ${viajesPorIniciar[0].horaSalida}, ${viajesPorIniciar[0].direccion}`
-              : "No hay viajes por iniciar"}
-          </Text>
-          <TouchableOpacity style={styles.detailsButton}>
-            <Text style={styles.detailsButtonText}>Ver detalles</Text>
-          </TouchableOpacity>
-        </View>
-        <Image
-          source={require("../../assets/images/carImage.png")}
-          style={styles.carImage}
-        />
-      </View>
+      {viajeEnCurso ? (
+  <View style={styles.headerContainer}>
+    <View style={styles.textContainer}>
+      <Text style={styles.headerTitle}>Viaje en Curso</Text>
+      <Text style={styles.headerSubtitle}>
+        {`${viajeEnCurso.fecha}, ${viajeEnCurso.horaSalida}, ${viajeEnCurso.direccion}`}
+      </Text>
+      <TouchableOpacity
+        style={styles.detailsButton}
+        onPress={() => router.push('../detallesViaje/usuario/EnCurso')}
+      >
+        <Text style={styles.detailsButtonText}>Ver detalles</Text>
+      </TouchableOpacity>
+    </View>
+    <Image
+      source={
+        viajeEnCurso.conductorCarPhoto
+          ? { uri: viajeEnCurso.conductorCarPhoto }
+          : require("../../assets/images/carImage.png")
+      }
+      style={styles.carImage}
+    />
+  </View>
+) : null}
+
+
 
       <ScrollView
         showsHorizontalScrollIndicator={false}

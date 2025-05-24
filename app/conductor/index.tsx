@@ -99,26 +99,23 @@ export default function Viajes() {
         style={styles.barraBusqueda}
       />
 
-      {/* Viaje en Curso */}
       {viajesEnCurso.length > 0 && (
-        <View style={styles.headerContainer}>
-          <View style={styles.headerTextContainer}>
-            <Text style={styles.headerTitle}>Viaje en Curso</Text>
-            <Text style={styles.headerSubtitle}>
-              {viajesEnCurso[0].fecha}, {viajesEnCurso[0].horaSalida},{" "}
-              {viajesEnCurso[0].direccion}
-            </Text>
-          <TouchableOpacity onPress={() => router.push('../detallesViaje/conductor/EnCurso')}>
-            <Text style={styles.verDetalles}>Ver detalles</Text>
-          </TouchableOpacity>
-
-          </View>
-          <Image
-            source={require("../../assets/images/carImage.png")}
-            style={styles.headerImage}
-          />
-        </View>
-      )}
+  <View style={styles.headerContainer}>
+    <View style={styles.headerTextContainer}>
+      <Text style={styles.headerTitle}>Viaje en Curso</Text>
+      <Text style={styles.headerSubtitle}>
+        {viajesEnCurso[0].fecha}, {viajesEnCurso[0].horaSalida}, {viajesEnCurso[0].direccion}
+      </Text>
+      <TouchableOpacity onPress={() => router.push('../detallesViaje/conductor/EnCurso')}>
+        <Text style={styles.verDetalles}>Ver detalles</Text>
+      </TouchableOpacity>
+    </View>
+    <Image
+      source={require("../../assets/images/carImage.png")}
+      style={styles.headerImage}
+    />
+  </View>
+)}
 
       {/* Tus viajes */}
       <View style={styles.section}>
