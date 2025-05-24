@@ -16,8 +16,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../../../utils/FirebaseConfig';
-
+import { db } from '@/utils/FirebaseConfig'; // Asegúrate de que la ruta sea correcta
 
 export default function ViajeDetalleScreen() {
   const {

@@ -11,10 +11,10 @@ import {
 import colors from '@/styles/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useCliente, Viaje } from '../../../context/viajeContext/viajeClienteContext';
-import { useAuth } from '../../../context/authContext/AuthContext';
+import { useCliente, Viaje } from '../../context/viajeContext/viajeClienteContext';
+import { useAuth } from '../../context/authContext/AuthContext';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../../../utils/FirebaseConfig';
+import { db } from '../../utils/FirebaseConfig';
 
 export default function ViajeDetalleScreen() {
   const { user } = useAuth();
@@ -169,7 +169,7 @@ export default function ViajeDetalleScreen() {
           </View>
 
           {/* FOTO DEL CARRO DEL CONDUCTOR */}
-          <View style={styles.carImageContainer}>
+          {/* <View style={styles.carImageContainer}>
             {/* {fotoCarroConductor ? (
               <Image
                 source={{ uri: fotoCarroConductor }}
@@ -179,7 +179,7 @@ export default function ViajeDetalleScreen() {
             ) : (
               <Ionicons name="car" size={60} color={colors.blue} />
             )} */}
-          </View>
+          {/* </View>  */}
         </View>
 
         {/* TU PUNTO */}

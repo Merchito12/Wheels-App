@@ -17,7 +17,7 @@ import { useRouter } from 'expo-router';
 import { useViajeSeleccionado } from '@/context/viajeContext/ViajeSeleccionadoContext';
 
 import { doc, getDoc } from "firebase/firestore";
-import { db } from "../../../utils/FirebaseConfig";  // Ajusta la ruta según tu proyecto
+import { db } from "../../utils/FirebaseConfig";  // Ajusta la ruta según tu proyecto
 
 
 export default function ViajeDetalleScreen() {
@@ -150,7 +150,7 @@ const [fotosClientes, setFotosClientes] = useState<Record<string, string>>({});
       setTimeout(() => {
         setLoading(false);
         setModalConfirmarVisible(false);
-        router.push('/detallesViaje/conductor/EnCurso');
+        router.push('/detallesViaje/EnCursoConductor');
       }, 2000);
     } catch (error) {
       console.error('Error iniciando viaje:', error);
@@ -536,6 +536,13 @@ const styles = StyleSheet.create({
         shadowRadius: 4,
         // sombra para Android
         elevation: 3,
+      },
+      center: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: colors.white,
+        padding: 20,
       },
       
 });

@@ -106,7 +106,7 @@ export default function Viajes() {
       <Text style={styles.headerSubtitle}>
         {viajesEnCurso[0].fecha}, {viajesEnCurso[0].horaSalida}, {viajesEnCurso[0].direccion}
       </Text>
-      <TouchableOpacity onPress={() => router.push('../detallesViaje/conductor/EnCurso')}>
+      <TouchableOpacity onPress={() => router.push('../detallesViaje/EnCursoConductor')}>
         <Text style={styles.verDetalles}>Ver detalles</Text>
       </TouchableOpacity>
     </View>
@@ -154,7 +154,7 @@ export default function Viajes() {
             style={styles.verInfoButton}
             onPress={() => {
               setViaje(viaje);
-              router.push('/detallesViaje/conductor/PorIniciar');
+              router.push('/detallesViaje/PorIniciarConductor');
             }}
           >
             <Text style={styles.verInfoText}>Ver info</Text>
