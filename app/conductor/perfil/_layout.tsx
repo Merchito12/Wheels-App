@@ -11,7 +11,7 @@ export default function RootLayout() {
       <Stack.Screen name="soporte"
        options={{
         headerShown:true,
-        headerTitle:"Soporte",
+        headerTitle:"Sopote",
         }} />
       <Stack.Screen name="terminos-y-condiciones"
        options={{

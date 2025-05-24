@@ -1,17 +1,32 @@
 import React, { useState, useEffect } from "react";
-import { 
-  View, Text, TouchableOpacity, StyleSheet, Image, ScrollView, ActivityIndicator 
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { Searchbar } from "react-native-paper";
-import { Ionicons } from '@expo/vector-icons';  // <-- Importa Ionicons aquí
-import colors from "../../styles/Colors"; 
-import { SortIcon, FilterIcon } from "../../components/Icons"; 
-import { useCliente } from "../../context/viajeContext/viajeClienteContext"; 
+import { Ionicons } from "@expo/vector-icons";
+import colors from "../../styles/Colors";
+import { SortIcon, FilterIcon } from "../../components/Icons";
+import { useCliente } from "../../context/viajeContext/viajeClienteContext";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "../../utils/FirebaseConfig";
+
+import ModalReservaViaje from "../../components/modales/ModalReservaViaje";
 
 export default function Index() {
   const [searchQuery, setSearchQuery] = useState("");
   const [viajesPorIniciar, setViajesPorIniciar] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const [modalVisible, setModalVisible] = useState(false);
+  const [viajeSeleccionado, setViajeSeleccionado] = useState<any>(null);
+  const [conductorInfo, setConductorInfo] = useState<any>(null);
+  const [cargandoConductor, setCargandoConductor] = useState(false);
 
   const { obtenerViajesPorEstado } = useCliente();
 
@@ -32,6 +47,36 @@ export default function Index() {
     cargarViajes();
   }, []);
 
+  async function obtenerConductorPorId(idConductor: string) {
+    setCargandoConductor(true);
+    try {
+      const docRef = doc(db, "users", idConductor);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return docSnap.data();
+      } else {
+        return null;
+      }
+    } catch (error) {
+      console.error("Error obteniendo conductor:", error);
+      return null;
+    } finally {
+      setCargandoConductor(false);
+    }
+  }
+
+  const abrirModal = async (viaje: any) => {
+    setViajeSeleccionado(viaje);
+    setModalVisible(true);
+
+    if (viaje.idConductor) {
+      const conductor = await obtenerConductorPorId(viaje.idConductor);
+      setConductorInfo(conductor);
+    } else {
+      setConductorInfo(null);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Searchbar
@@ -40,13 +85,16 @@ export default function Index() {
         onChangeText={onChangeSearch}
         style={styles.barraBusqueda}
       />
+
       <View style={styles.buttonsContainer}>
         <TouchableOpacity style={styles.sort}>
-          <SortIcon color={colors.grey} /> <Text style={styles.buttonText}>Sort</Text>
+          <SortIcon color={colors.grey} />{" "}
+          <Text style={styles.buttonText}>Sort</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.filter}>       
-          <FilterIcon color={colors.grey} /> <Text style={styles.buttonText}>Filter</Text>
+        <TouchableOpacity style={styles.filter}>
+          <FilterIcon color={colors.grey} />{" "}
+          <Text style={styles.buttonText}>Filter</Text>
         </TouchableOpacity>
       </View>
 
@@ -63,34 +111,39 @@ export default function Index() {
           </TouchableOpacity>
         </View>
         <Image
-          source={require("../../assets/images/carImage.png")} 
+          source={require("../../assets/images/carImage.png")}
           style={styles.carImage}
         />
       </View>
 
-      {/* Viajes disponibles */}
-      <ScrollView showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollContainer}>
+      <ScrollView
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContainer}
+      >
         <View style={styles.tripsContainer}>
           {loading ? (
             <ActivityIndicator size="large" color={colors.blue} />
           ) : viajesPorIniciar.length === 0 ? (
             <Text>No hay viajes por iniciar</Text>
           ) : (
-            viajesPorIniciar.map((viaje, index) => (
+            viajesPorIniciar.map((viaje) => (
               <View key={viaje.id} style={styles.tripCard}>
                 <Image
                   source={require("../../assets/images/carImage.png")}
                   style={styles.image}
                 />
-                <Text style={styles.tripName}>
-                  {viaje.direccion} {/* Dirección del viaje */}
+                <Text style={styles.tripName}>{viaje.direccion}</Text>
+                <Text style={styles.conductorName}>
+                  Conductor: {viaje.conductor || "Desconocido"}
                 </Text>
-                <Text style={styles.conductorName}>Conductor: {viaje.conductor || "Desconocido"}</Text>
                 <Text style={styles.tripPrice}>€ {viaje.precio}</Text>
 
-                {/* Aquí están los iconos antes de fecha y hora */}
                 <View style={styles.row}>
-                  <Ionicons name="calendar-outline" size={16} color={colors.grey} />
+                  <Ionicons
+                    name="calendar-outline"
+                    size={16}
+                    color={colors.grey}
+                  />
                   <Text style={styles.dateText}> {viaje.fecha}</Text>
                 </View>
                 <View style={styles.row}>
@@ -98,7 +151,10 @@ export default function Index() {
                   <Text style={styles.dateText}> {viaje.horaSalida}</Text>
                 </View>
 
-                <TouchableOpacity style={styles.reserveButton}>
+                <TouchableOpacity
+                  style={styles.reserveButton}
+                  onPress={() => abrirModal(viaje)}
+                >
                   <Text style={styles.reserveButtonText}>Reservar</Text>
                 </TouchableOpacity>
               </View>
@@ -106,6 +162,22 @@ export default function Index() {
           )}
         </View>
       </ScrollView>
+
+      <ModalReservaViaje
+        visible={modalVisible}
+        onClose={() => {
+          setModalVisible(false);
+          setViajeSeleccionado(null);
+          setConductorInfo(null);
+        }}
+        viajeSeleccionado={viajeSeleccionado}
+        conductorInfo={conductorInfo}
+        cargandoConductor={cargandoConductor}
+        onAceptar={() => {
+          setModalVisible(false);
+          alert("¡Viaje reservado!");
+        }}
+      />
     </View>
   );
 }
@@ -248,8 +320,8 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 5,
   },
   dateText: {
