@@ -16,6 +16,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useViajeSeleccionado } from '@/context/viajeContext/ViajeSeleccionadoContext';
 
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "../../utils/FirebaseConfig";  // Ajusta la ruta según tu proyecto
+
+
 export default function ViajeDetalleScreen() {
   const { viaje } = useViajeSeleccionado();
   const {
@@ -33,6 +37,10 @@ export default function ViajeDetalleScreen() {
   const [negados, setNegados] = useState<
     { viajeId: string; viajeDireccion: string; punto: Punto }[]
   >([]);
+
+  const [nombresClientes, setNombresClientes] = useState<Record<string, string>>({});
+const [fotosClientes, setFotosClientes] = useState<Record<string, string>>({});
+
 
   const [modalConfirmarVisible, setModalConfirmarVisible] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -53,6 +61,52 @@ export default function ViajeDetalleScreen() {
     }
     cargarPuntos();
   }, [viaje]);
+
+
+  const cargarDatosCliente = async (idCliente: string) => {
+    try {
+      const userDoc = await getDoc(doc(db, "users", idCliente));
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        return {
+          nombre: data.name || "Sin nombre",
+          foto: data.profilePhotoURL || "",
+        };
+      }
+    } catch (error) {
+      console.error(`Error al obtener datos de cliente ${idCliente}:`, error);
+    }
+    return { nombre: idCliente, foto: "" };
+  };
+  useEffect(() => {
+    const cargarDatosClientes = async () => {
+      const todosIds = new Set<string>();
+      aceptados.forEach(({ punto }) => todosIds.add(punto.idCliente));
+      pendientes.forEach(({ punto }) => todosIds.add(punto.idCliente));
+      negados.forEach(({ punto }) => todosIds.add(punto.idCliente));
+  
+      const nuevosNombres: Record<string, string> = {};
+      const nuevasFotos: Record<string, string> = {};
+  
+      for (const id of todosIds) {
+        if (!nombresClientes[id] || !fotosClientes[id]) {
+          const { nombre, foto } = await cargarDatosCliente(id);
+          nuevosNombres[id] = nombre;
+          nuevasFotos[id] = foto;
+        }
+      }
+  
+      if (Object.keys(nuevosNombres).length > 0) {
+        setNombresClientes(prev => ({ ...prev, ...nuevosNombres }));
+      }
+      if (Object.keys(nuevasFotos).length > 0) {
+        setFotosClientes(prev => ({ ...prev, ...nuevasFotos }));
+      }
+    };
+  
+    cargarDatosClientes();
+  }, [aceptados, pendientes, negados]);
+    
 
   const manejarAceptar = async (punto: Punto) => {
     try {
@@ -96,7 +150,7 @@ export default function ViajeDetalleScreen() {
       setTimeout(() => {
         setLoading(false);
         setModalConfirmarVisible(false);
-        router.push('/detallesViaje/conductor/EnCurso');
+        router.push('/detallesViaje/EnCursoConductor');
       }, 2000);
     } catch (error) {
       console.error('Error iniciando viaje:', error);
@@ -170,23 +224,29 @@ export default function ViajeDetalleScreen() {
           </TouchableOpacity>
 
           {aceptados.length > 0 && (
-            <>
-              <Text style={styles.subtitulo}>Por Recoger</Text>
-              {aceptados.map(({ punto }, index) => (
-                <View key={`a-${index}`} style={styles.puntoRow}>
-                  <Ionicons
-                    name="person-circle"
-                    size={36}
-                    color={colors.lightGreyrows}
-                  />
-                  <View style={styles.puntoInfo}>
-                    <Text style={styles.puntoNombre}>{punto.idCliente}</Text>
-                    <Text style={styles.puntoDireccion}>{punto.direccion}</Text>
-                  </View>
-                </View>
-              ))}
-            </>
-          )}
+  <>
+    <Text style={styles.subtitulo}>Puntos Aceptados</Text>
+    {aceptados.map(({ punto }, index) => (
+      <View key={`a-${index}`} style={[styles.puntoRow, styles.cardPunto]}>
+        {fotosClientes[punto.idCliente] ? (
+          <Image
+            source={{ uri: fotosClientes[punto.idCliente] }}
+            style={styles.userImage}
+          />
+        ) : (
+          <Ionicons name="person-circle" size={36} color={colors.lightGreyrows} />
+        )}
+        <View style={styles.puntoInfo}>
+          <Text style={styles.puntoNombre}>{punto.direccion}</Text>
+          <Text style={styles.puntoDireccion}>
+            {nombresClientes[punto.idCliente] || punto.idCliente}
+          </Text>
+        </View>
+      </View>
+    ))}
+  </>
+)}
+
 
           {pendientes.length > 0 && (
             <>
@@ -344,8 +404,9 @@ const styles = StyleSheet.create({
     color: colors.grey,
   },
   subtitulo: {
-    fontSize: 14,
-    color: colors.lightGreyrows,
+    fontSize: 18,
+    color: colors.grey,
+    fontWeight: 'bold',
     marginTop: 30,
     marginBottom: 10,
   },
@@ -441,11 +502,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     alignItems: 'center',
   },
-  cancelButton: {
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.blue,
-  },
+
   confirmButton: {
     backgroundColor: colors.blue,
   },
@@ -459,4 +516,33 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+    userImage: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        marginRight: 10,
+    },
+    cardPunto: {
+        backgroundColor: colors.white,
+        borderRadius: 12,
+        padding: 15,
+        marginVertical: 8,
+        flexDirection: 'row',
+        alignItems: 'center',
+        // sombra para iOS
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        // sombra para Android
+        elevation: 3,
+      },
+      center: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: colors.white,
+        padding: 20,
+      },
+      
 });

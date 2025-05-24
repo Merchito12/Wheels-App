@@ -162,7 +162,7 @@ export default function Index() {
       </Text>
       <TouchableOpacity
         style={styles.detailsButton}
-        onPress={() => router.push('../detallesViaje/usuario/EnCurso')}
+        onPress={() => router.push('../detallesViaje/EnCursoUsuario')}
       >
         <Text style={styles.detailsButtonText}>Ver detalles</Text>
       </TouchableOpacity>
