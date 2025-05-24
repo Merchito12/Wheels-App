@@ -9,23 +9,36 @@ import {
   Modal,
 } from 'react-native';
 import colors from '@/styles/Colors';
-import { Punto, useViajes } from '@/context/viajeContext/ViajeConductorContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useCliente, Viaje } from '../../../context/viajeContext/viajeClienteContext'; // Ajusta ruta
+import { useCliente, Viaje } from '../../../context/viajeContext/viajeClienteContext';
 import { useAuth } from '../../../context/authContext/AuthContext';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../../utils/FirebaseConfig';
 
 export default function ViajeDetalleScreen() {
-  const { viajes, obtenerPuntosPorEstado, actualizarEstadoViaje } = useViajes();
   const { user } = useAuth();
   const { obtenerViajesPorEstadoViajeYEstadoPunto } = useCliente();
   const router = useRouter();
 
   const [viajeEnCurso, setViajeEnCurso] = useState<Viaje | null>(null);
   const [loading, setLoading] = useState(true);
-
-  // Modal para mostrar QR
   const [modalQRVisible, setModalQRVisible] = useState(false);
+  const [fotosClientes, setFotosClientes] = useState<Record<string, string>>({});
+
+  // Obtener foto perfil cliente por idCliente
+  const obtenerFotoCliente = async (idCliente: string): Promise<string | null> => {
+    try {
+      const userDoc = await getDoc(doc(db, 'users', idCliente));
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        return data.profilePhotoURL || null;
+      }
+    } catch (error) {
+      console.error(`Error obteniendo foto de cliente ${idCliente}:`, error);
+    }
+    return null;
+  };
 
   useEffect(() => {
     async function cargarViajeEnCurso() {
@@ -37,8 +50,8 @@ export default function ViajeDetalleScreen() {
       setLoading(true);
       try {
         const viajes = await obtenerViajesPorEstadoViajeYEstadoPunto('en curso', 'aceptado');
-        const viajeFiltrado = viajes.find((viaje) =>
-          viaje.puntos.some((punto) => punto.idCliente === user.uid)
+        const viajeFiltrado = viajes.find(v =>
+          v.puntos.some(p => p.idCliente === user.uid)
         );
         setViajeEnCurso(viajeFiltrado || null);
       } catch (error) {
@@ -50,6 +63,23 @@ export default function ViajeDetalleScreen() {
     }
     cargarViajeEnCurso();
   }, [user, obtenerViajesPorEstadoViajeYEstadoPunto]);
+
+  useEffect(() => {
+    async function cargarFotos() {
+      if (!viajeEnCurso) return;
+      const nuevasFotos: Record<string, string> = {};
+      for (const punto of viajeEnCurso.puntos) {
+        if (!fotosClientes[punto.idCliente]) {
+          const url = await obtenerFotoCliente(punto.idCliente);
+          if (url) nuevasFotos[punto.idCliente] = url;
+        }
+      }
+      if (Object.keys(nuevasFotos).length > 0) {
+        setFotosClientes(prev => ({ ...prev, ...nuevasFotos }));
+      }
+    }
+    cargarFotos();
+  }, [viajeEnCurso]);
 
   if (loading) {
     return (
@@ -67,24 +97,19 @@ export default function ViajeDetalleScreen() {
     );
   }
 
-  const puntosAceptados = viajeEnCurso.puntos.filter((p) => p.estado === 'aceptado');
+  const puntosAceptados = viajeEnCurso.puntos.filter(p => p.estado === 'aceptado');
   const miPunto = puntosAceptados.find(p => p.idCliente === user?.uid) || null;
   const otrosPuntos = puntosAceptados.filter(p => p.idCliente !== user?.uid);
 
   return (
     <>
-      {/* HEADER FIJO ARRIBA */}
+      {/* HEADER */}
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.replace('/usuario')}
-          style={styles.backButton}
-        >
+        <TouchableOpacity onPress={() => router.replace('/usuario')} style={styles.backButton}>
           <Ionicons name="arrow-back" size={28} color={colors.blue} />
         </TouchableOpacity>
         <View style={styles.headerTextContainer}>
-          <Text style={styles.headerTitle}>
-            {viajeEnCurso.direccion}
-          </Text>
+          <Text style={styles.headerTitle}>{viajeEnCurso.direccion}</Text>
           <Text style={styles.headerSubtitle}>
             Estado: <Text style={{ fontWeight: 'bold' }}>{viajeEnCurso.estado}</Text>
           </Text>
@@ -92,6 +117,7 @@ export default function ViajeDetalleScreen() {
       </View>
 
       <ScrollView style={styles.container} contentContainerStyle={{ paddingTop: 90 }}>
+        {/* FOTO ESTÁTICA DEL MAPA */}
         <Image
           source={require('@/assets/images/map.png')}
           style={styles.mapImage}
@@ -99,7 +125,7 @@ export default function ViajeDetalleScreen() {
         />
 
         <View style={styles.infoContainer}>
-          {/* Información adicional del viaje con íconos */}
+          {/* DATOS DEL VIAJE */}
           <View style={styles.infoRow}>
             <Ionicons name="cash-outline" size={20} color={colors.grey} />
             <Text style={styles.infoText}>
@@ -115,12 +141,20 @@ export default function ViajeDetalleScreen() {
             <Text style={styles.infoText}>Hora: {viajeEnCurso.horaSalida || 'N/A'}</Text>
           </View>
 
-          {/* Mostrar "Tu Punto" con ícono QR */}
-          {miPunto ? (
+          {/* TU PUNTO */}
+          {miPunto && (
             <>
               <Text style={styles.subtitulo}>Tu Punto</Text>
               <View style={styles.card}>
-                <Ionicons name="person-circle" size={40} color={colors.blue} />
+                {fotosClientes[miPunto.idCliente] ? (
+                  <Image
+                    source={{ uri: fotosClientes[miPunto.idCliente] }}
+                    style={styles.userImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <Ionicons name="person-circle" size={40} color={colors.blue} />
+                )}
                 <View style={styles.cardContent}>
                   <Text style={styles.cardTitle}>{miPunto.direccion}</Text>
                   <Text style={styles.cardEstado}>Estado: {miPunto.estado}</Text>
@@ -133,9 +167,9 @@ export default function ViajeDetalleScreen() {
                 </TouchableOpacity>
               </View>
             </>
-          ) : null}
+          )}
 
-          {/* Mostrar los otros puntos */}
+          {/* OTROS PUNTOS */}
           <Text style={styles.subtitulo}>Otros Puntos Aceptados</Text>
           {otrosPuntos.length === 0 ? (
             <Text style={{ color: colors.grey, fontStyle: 'italic' }}>
@@ -144,7 +178,15 @@ export default function ViajeDetalleScreen() {
           ) : (
             otrosPuntos.map((punto, index) => (
               <View key={index} style={[styles.card, styles.cardGris]}>
-                <Ionicons name="person-circle" size={40} color={colors.blue} />
+                {fotosClientes[punto.idCliente] ? (
+                  <Image
+                    source={{ uri: fotosClientes[punto.idCliente] }}
+                    style={styles.userImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <Ionicons name="person-circle" size={40} color={colors.blue} />
+                )}
                 <View style={styles.cardContent}>
                   <Text style={styles.cardTitle}>{punto.direccion}</Text>
                   <Text style={styles.cardEstado}>Estado: {punto.estado}</Text>
@@ -165,11 +207,10 @@ export default function ViajeDetalleScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <Image
-              source={require('@/assets/images/qr_example.png')} // Cambia la ruta a tu imagen QR
+              source={require('@/assets/images/qr_example.png')}
               style={styles.qrImage}
               resizeMode="contain"
             />
-            {/* Botón Cerrar personalizado */}
             <TouchableOpacity
               style={styles.modalCloseButton}
               onPress={() => setModalQRVisible(false)}
@@ -273,6 +314,11 @@ const styles = StyleSheet.create({
   qrIconContainer: {
     marginLeft: 15,
     padding: 6,
+  },
+  userImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
   },
   qrImage: {
     width: 250,
