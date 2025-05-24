@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   View, 
   Text, 
@@ -15,11 +15,24 @@ import colors from "../../styles/Colors"; // Usando los colores definidos
 
 const LoginScreen = () => {
   const router = useRouter();
-  const { login, userRole } = useAuth(); // Accediendo al método login desde el contexto
+  const { login, userRole } = useAuth(); // Accediendo al método login y userRole desde el contexto
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState<{ email?: string; password?: string }>({});
+
+  // useEffect para redirigir según userRole cuando este cambie
+  useEffect(() => {
+    if (userRole) {
+      if (userRole === 'Conductor') {
+        router.replace("./conductor");
+      } else if (userRole === 'Usuario') {
+        router.replace("./usuario");
+      } else {
+        router.replace("./");
+      }
+    }
+  }, [userRole]);
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -46,18 +59,8 @@ const LoginScreen = () => {
     if (Object.keys(errors).length > 0) return;
 
     try {
-      await login(email, password);  // Usando el login del contexto
+      await login(email, password);  // Solo login aquí, no redirigimos aquí
       Alert.alert("Éxito", "Usuario ingresado correctamente.");
-
-      // Redirigir según el rol del usuario
-      if (userRole === 'Conductor') {
-        router.replace("./conductor");  // Redirige a la pantalla del conductor
-      } else if (userRole === 'Usuario') {
-        router.replace("./usuario");  // Redirige a la pantalla del usuario
-      } else {
-        router.replace("./usuario");  // Redirige a la pantalla principal si no tiene rol definido
-      }
-
     } catch (error: any) {
       Alert.alert("Error", getErrorMessage(error.code));
     }
@@ -111,8 +114,8 @@ const LoginScreen = () => {
           onChangeText={setPassword}
         />
          <TouchableOpacity>
-        <Text style={styles.forgotPasswordText}>¿Olvidaste tu contraseña?</Text>
-        </TouchableOpacity>
+           <Text style={styles.forgotPasswordText}>¿Olvidaste tu contraseña?</Text>
+         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
           <MaterialIcons name={showPassword ? "visibility-off" : "visibility"} size={24} color={colors.grey} />
@@ -131,7 +134,6 @@ const LoginScreen = () => {
         </Text>
       </TouchableOpacity>
 
-     
     </View>
   );
 };
@@ -191,7 +193,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     width: "100%",
     marginTop: 30,
-
   },
   mainButtonText: {
     color: colors.white,
@@ -223,7 +224,7 @@ const styles = StyleSheet.create({
     color: colors.blue,
     fontSize: 14,
     marginTop: 10,
-    alignSelf: "flex-start",  // Alineado a la izquierda
+    alignSelf: "flex-start",
   },
 });
 

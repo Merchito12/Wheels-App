@@ -37,7 +37,31 @@ export default function Index() {
       setLoading(true);
       try {
         const viajes = await obtenerViajesPorEstado("por iniciar");
-        setViajesPorIniciar(viajes);
+
+        // Obtener info de conductor para cada viaje
+        const viajesConductor = await Promise.all(
+          viajes.map(async (viaje: any) => {
+            if (viaje.idConductor) {
+              const docRef = doc(db, "users", viaje.idConductor);
+              const docSnap = await getDoc(docRef);
+              if (docSnap.exists()) {
+                const conductorData = docSnap.data();
+                return {
+                  ...viaje,
+                  conductorNombre: conductorData.name || "Sin nombre",
+                  conductorCarPhoto: conductorData.car?.photoURL || null,
+                };
+              }
+            }
+            return {
+              ...viaje,
+              conductorNombre: "Sin conductor",
+              conductorCarPhoto: null,
+            };
+          })
+        );
+
+        setViajesPorIniciar(viajesConductor);
       } catch (error) {
         console.error("Error cargando viajes:", error);
       } finally {
@@ -128,12 +152,26 @@ export default function Index() {
           ) : (
             viajesPorIniciar.map((viaje) => (
               <View key={viaje.id} style={styles.tripCard}>
-                <Image
-                  source={require("../../assets/images/carImage.png")}
-                  style={styles.image}
-                />
+                {/* Foto del carro del conductor */}
+                {viaje.conductorCarPhoto ? (
+                  <Image
+                    source={{ uri: viaje.conductorCarPhoto }}
+                    style={styles.image}
+                  />
+                ) : (
+                  <Image
+                    source={require("../../assets/images/carImage.png")}
+                    style={styles.image}
+                  />
+                )}
+
+                {/* Nombre del conductor */}
+                <Text style={styles.conductorName}>{viaje.conductorNombre}</Text>
+
+                {/* Dirección */}
                 <Text style={styles.tripName}>{viaje.direccion}</Text>
-              
+
+                {/* Precio */}
                 <Text style={styles.tripPrice}>€ {viaje.precio}</Text>
 
                 <View style={styles.row}>
@@ -300,6 +338,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.darkGrey,
     marginBottom: 8,
+    fontWeight: "600",
+    textAlign: "center",
   },
   tripPrice: {
     fontSize: 14,
