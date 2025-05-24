@@ -25,8 +25,9 @@ export default function ViajeDetalleScreen() {
   const [loading, setLoading] = useState(true);
   const [modalQRVisible, setModalQRVisible] = useState(false);
   const [fotosClientes, setFotosClientes] = useState<Record<string, string>>({});
+  const [fotoCarroConductor, setFotoCarroConductor] = useState<string | null>(null);
 
-  // Obtener foto perfil cliente por idCliente
+  // Obtener foto perfil cliente por idCliente (pasajeros)
   const obtenerFotoCliente = async (idCliente: string): Promise<string | null> => {
     try {
       const userDoc = await getDoc(doc(db, 'users', idCliente));
@@ -36,6 +37,20 @@ export default function ViajeDetalleScreen() {
       }
     } catch (error) {
       console.error(`Error obteniendo foto de cliente ${idCliente}:`, error);
+    }
+    return null;
+  };
+
+  // Obtener foto carro conductor por uid
+  const obtenerFotoCarroConductor = async (uid: string): Promise<string | null> => {
+    try {
+      const userDoc = await getDoc(doc(db, 'users', uid));
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        return data.car?.photoURL || null;
+      }
+    } catch (error) {
+      console.error(`Error obteniendo foto de carro del conductor ${uid}:`, error);
     }
     return null;
   };
@@ -64,21 +79,33 @@ export default function ViajeDetalleScreen() {
     cargarViajeEnCurso();
   }, [user, obtenerViajesPorEstadoViajeYEstadoPunto]);
 
+  // Cargar fotos pasajeros
   useEffect(() => {
-    async function cargarFotos() {
+    async function cargarFotosClientes() {
       if (!viajeEnCurso) return;
-      const nuevasFotos: Record<string, string> = {};
+      const nuevasFotosClientes: Record<string, string> = {};
       for (const punto of viajeEnCurso.puntos) {
         if (!fotosClientes[punto.idCliente]) {
-          const url = await obtenerFotoCliente(punto.idCliente);
-          if (url) nuevasFotos[punto.idCliente] = url;
+          const urlCliente = await obtenerFotoCliente(punto.idCliente);
+          if (urlCliente) nuevasFotosClientes[punto.idCliente] = urlCliente;
         }
       }
-      if (Object.keys(nuevasFotos).length > 0) {
-        setFotosClientes(prev => ({ ...prev, ...nuevasFotos }));
+      if (Object.keys(nuevasFotosClientes).length > 0) {
+        setFotosClientes(prev => ({ ...prev, ...nuevasFotosClientes }));
       }
     }
-    cargarFotos();
+    cargarFotosClientes();
+  }, [viajeEnCurso]);
+
+  // Cargar foto carro del conductor que creó el viaje
+  useEffect(() => {
+    async function cargarFotoCarro() {
+      if (!viajeEnCurso) return;
+      if (!viajeEnCurso.idConductor) return; // ajusta según tu modelo si es otro campo
+      const foto = await obtenerFotoCarroConductor(viajeEnCurso.idConductor);
+      setFotoCarroConductor(foto);
+    }
+    cargarFotoCarro();
   }, [viajeEnCurso]);
 
   if (loading) {
@@ -124,8 +151,8 @@ export default function ViajeDetalleScreen() {
           resizeMode="cover"
         />
 
+        {/* INFORMACIÓN DEL VIAJE */}
         <View style={styles.infoContainer}>
-          {/* DATOS DEL VIAJE */}
           <View style={styles.infoRow}>
             <Ionicons name="cash-outline" size={20} color={colors.grey} />
             <Text style={styles.infoText}>
@@ -141,60 +168,81 @@ export default function ViajeDetalleScreen() {
             <Text style={styles.infoText}>Hora: {viajeEnCurso.horaSalida || 'N/A'}</Text>
           </View>
 
-          {/* TU PUNTO */}
-          {miPunto && (
-            <>
-              <Text style={styles.subtitulo}>Tu Punto</Text>
-              <View style={styles.card}>
-                {fotosClientes[miPunto.idCliente] ? (
-                  <Image
-                    source={{ uri: fotosClientes[miPunto.idCliente] }}
-                    style={styles.userImage}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <Ionicons name="person-circle" size={40} color={colors.blue} />
-                )}
-                <View style={styles.cardContent}>
-                  <Text style={styles.cardTitle}>{miPunto.direccion}</Text>
-                  <Text style={styles.cardEstado}>Estado: {miPunto.estado}</Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.qrIconContainer}
-                  onPress={() => setModalQRVisible(true)}
-                >
-                  <Ionicons name="qr-code-outline" size={30} color={colors.blue} />
-                </TouchableOpacity>
-              </View>
-            </>
-          )}
-
-          {/* OTROS PUNTOS */}
-          <Text style={styles.subtitulo}>Otros Puntos Aceptados</Text>
-          {otrosPuntos.length === 0 ? (
-            <Text style={{ color: colors.grey, fontStyle: 'italic' }}>
-              No hay otros puntos aceptados.
-            </Text>
-          ) : (
-            otrosPuntos.map((punto, index) => (
-              <View key={index} style={[styles.card, styles.cardGris]}>
-                {fotosClientes[punto.idCliente] ? (
-                  <Image
-                    source={{ uri: fotosClientes[punto.idCliente] }}
-                    style={styles.userImage}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <Ionicons name="person-circle" size={40} color={colors.blue} />
-                )}
-                <View style={styles.cardContent}>
-                  <Text style={styles.cardTitle}>{punto.direccion}</Text>
-                  <Text style={styles.cardEstado}>Estado: {punto.estado}</Text>
-                </View>
-              </View>
-            ))
-          )}
+          {/* FOTO DEL CARRO DEL CONDUCTOR */}
+          <View style={styles.carImageContainer}>
+            {/* {fotoCarroConductor ? (
+              <Image
+                source={{ uri: fotoCarroConductor }}
+                style={styles.carImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <Ionicons name="car" size={60} color={colors.blue} />
+            )} */}
+          </View>
         </View>
+
+        {/* TU PUNTO */}
+        {miPunto && (
+          <>
+          <View style={styles.listConatainer}>
+            <Text style={styles.subtitulo}>Tu Punto</Text>
+            <View style={styles.card}>
+              {fotosClientes[miPunto.idCliente] ? (
+                <Image
+                  source={{ uri: fotosClientes[miPunto.idCliente] }}
+                  style={styles.userImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Ionicons name="person-circle" size={40} color={colors.blue} />
+              )}
+              <View style={styles.cardContent}>
+                <Text style={styles.cardTitle}>{miPunto.direccion}</Text>
+                <Text style={styles.cardEstado}>Estado: {miPunto.estado}</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.qrIconContainer}
+                onPress={() => setModalQRVisible(true)}
+              >
+                <Ionicons name="qr-code-outline" size={30} color={colors.blue} />
+              </TouchableOpacity>
+            </View>
+            </View>
+
+          </>
+        )}
+
+        {/* OTROS PUNTOS */}
+        <View style={styles.listConatainer}>
+        <Text style={styles.subtitulo}>Otros Puntos Aceptados</Text>
+        {otrosPuntos.length === 0 ? (
+          <Text style={{ color: colors.grey, fontStyle: 'italic' }}>
+            No hay otros puntos aceptados.
+          </Text>
+        ) : (
+          otrosPuntos.map((punto, index) => (
+            <View key={index} style={[styles.card, styles.cardGris]}>
+              {fotosClientes[punto.idCliente] ? (
+                <Image
+                  source={{ uri: fotosClientes[punto.idCliente] }}
+                  style={styles.userImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Ionicons name="person-circle" size={40} color={colors.blue} />
+              )}
+              <View style={styles.cardContent}>
+                <Text style={styles.cardTitle}>{punto.direccion}</Text>
+                <Text style={styles.cardEstado}>Estado: {punto.estado}</Text>
+              </View>
+            </View>
+
+          ))
+        )}
+                </View>
+
+        
       </ScrollView>
 
       {/* Modal QR */}
@@ -320,6 +368,15 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
   },
+  carImageContainer: {
+    marginTop: 15,
+    alignItems: 'center',
+  },
+  carImage: {
+    width: 200,
+    height: 120,
+    borderRadius: 10,
+  },
   qrImage: {
     width: 250,
     height: 250,
@@ -350,6 +407,9 @@ const styles = StyleSheet.create({
     color: colors.blue,
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  listConatainer: {
+    paddingHorizontal: 20,
   },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 });
