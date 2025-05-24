@@ -178,7 +178,8 @@ export default function Viajes() {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 20,
+    paddingTop: 80,
+    paddingHorizontal: 20,
     backgroundColor: colors.white,
   },
   greetingText: {
