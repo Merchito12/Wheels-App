@@ -1,3 +1,5 @@
+// Actualiza el archivo de Tabslayout para ocultar el App Bar en la pantalla de detalles del viaje
+
 import { AuthProvider } from "@/context/authContext/AuthContext";
 import { Tabs } from "expo-router";
 import { HomeIcon, UserIcon, ActivityIcon, HistoryIcon } from "../../components/Icons";
@@ -16,7 +18,7 @@ export default function Tabslayout() {
             tabBarIcon: ({ focused }) => (
               <HomeIcon color={focused ? colors.black : colors.grey} />
             ),
-           tabBarLabelStyle: styles.tabBarLabel,
+            tabBarLabelStyle: styles.tabBarLabel,
             tabBarActiveTintColor: colors.black,
             tabBarInactiveTintColor: colors.grey,
             tabBarIconStyle: styles.tabBarIconStyle,
@@ -48,7 +50,6 @@ export default function Tabslayout() {
                 <Text style={[styles.textStyle, { color: focused ? colors.lightGrey : colors.white }]}>Mi{'\n'}Viaje</Text>
               </View>
             ),
-            
             tabBarIconStyle: styles.tabBarIconStyle,
             tabBarStyle: styles.tabBarStyle,
           }}
@@ -76,11 +77,19 @@ export default function Tabslayout() {
             tabBarIcon: ({ focused }) => (
               <UserIcon color={focused ? colors.black : colors.grey} />
             ),
-           tabBarLabelStyle: styles.tabBarLabel,
+            tabBarLabelStyle: styles.tabBarLabel,
             tabBarActiveTintColor: colors.black,
             tabBarInactiveTintColor: colors.grey,
             tabBarIconStyle: styles.tabBarIconStyle,
             tabBarStyle: styles.tabBarStyle,
+          }}
+        />
+
+        {/* La nueva pantalla de detalles */}
+        <Tabs.Screen
+          name="detallesViaje"
+          options={{
+            headerShown: false,  // Esto deshabilita el App Bar
           }}
         />
       </Tabs>
@@ -114,6 +123,5 @@ const styles = StyleSheet.create({
   },
   tabBarLabel: {
     fontSize: 14,
-   
   },
 });

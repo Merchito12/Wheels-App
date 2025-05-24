@@ -149,7 +149,6 @@ export default function Solicitudes() {
           <Text style={styles.solicitudDetails}>Fecha: {viaje.fecha || "N/A"}</Text>
           <Text style={styles.solicitudDetails}>Hora: {viaje.horaSalida || "N/A"}</Text>
           <Text style={styles.solicitudDetails}>Dirección del punto: {punto.direccion || "N/A"}</Text>
-          <Text style={styles.solicitudDetails}>Sector: {punto.sector || "N/A"}</Text>
         </View>
       </View>
     ));

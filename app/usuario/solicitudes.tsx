@@ -1,52 +1,136 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
+} from "react-native";
+import colors from "@/styles/Colors";
+import { useCliente } from "../../context/viajeContext/viajeClienteContext";
+
+interface Punto {
+  estado: string;
+  fecha?: string;
+  hora?: string;
+  direccion?: string;
+  sector?: string;
+}
+
+interface Viaje {
+  id: string;
+  direccion: string;
+  fecha: string;
+  horaSalida: string;
+  puntos: Punto[];
+}
+
+interface PuntoConViaje {
+  viaje: Viaje;
+  punto: Punto;
+}
 
 export default function Solicitudes() {
-  const [activeTab, setActiveTab] = useState<"todos" | "aceptados" | "pendientes" | "negados">("todos");  // Estado para controlar la pestaña activa
+  const [activeTab, setActiveTab] = useState<
+    "todos" | "aceptados" | "pendientes" | "negados"
+  >("todos");
+  const [puntos, setPuntos] = useState<PuntoConViaje[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const handleTabChange = (tab: "todos" | "aceptados" | "pendientes" | "negados") => {
-    setActiveTab(tab);
+  const {
+    obtenerViajesPorEstado,
+    obtenerViajesPorEstadoPunto,
+  } = useCliente();
+
+  // Mapeo para convertir "aceptados" -> "aceptado", etc.
+  const estadoPuntoMap: Record<string, string> = {
+    aceptados: "aceptado",
+    pendientes: "pendiente",
+    negados: "negado",
   };
 
-  const solicitudesData = {
-    todos: [
-      { title: "Info del viaje aceptado", price: "€ 000", details: "fecha, hora de inicio, dirección, sector", period: "every year" },
-      { title: "Info del viaje aceptado", price: "€ 000", details: "fecha, hora de inicio, dirección, sector", period: "every year" },
-    ],
-    aceptados: [
-      { title: "Info del viaje aceptado", price: "€ 000", details: "fecha, hora de inicio, dirección, sector", period: "every year" },
-    ],
-    pendientes: [
-      { title: "Info del viaje aceptado", price: "€ 000", details: "fecha, hora de inicio, dirección, sector", period: "every year" },
-    ],
-    negados: [
-      { title: "Info del viaje aceptado", price: "€ 000", details: "fecha, hora de inicio, dirección, sector", period: "every year" },
-    ]
-  };
+  useEffect(() => {
+    async function cargarPuntos() {
+      setLoading(true);
+      try {
+        if (activeTab === "todos") {
+          // Traer todos los viajes con estado "por iniciar"
+          const viajes = await obtenerViajesPorEstado("por iniciar");
+          const todosPuntos: PuntoConViaje[] = [];
+          viajes.forEach((viaje) => {
+            viaje.puntos?.forEach((punto) => {
+              todosPuntos.push({ viaje, punto });
+            });
+          });
+          setPuntos(todosPuntos);
+        } else {
+          // Filtrar viajes con estado "por iniciar" y puntos con estado específico
+          const viajes = await obtenerViajesPorEstado("por iniciar");
+          const puntosFiltrados: PuntoConViaje[] = [];
+          viajes.forEach((viaje) => {
+            viaje.puntos
+              ?.filter((p) => p.estado === estadoPuntoMap[activeTab])
+              .forEach((punto) => puntosFiltrados.push({ viaje, punto }));
+          });
+          setPuntos(puntosFiltrados);
+        }
+      } catch (error) {
+        console.error("Error cargando puntos:", error);
+        setPuntos([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    cargarPuntos();
+  }, [activeTab, obtenerViajesPorEstado]);
 
-  const renderSolicitudes = () => {
-    return solicitudesData[activeTab].map((solicitud, index) => (
-      <View key={index} style={styles.solicitudCard}>
-        <View style={styles.solicitudInfo}>
-          <Text style={styles.solicitudTitle}>{solicitud.title}</Text>
-          <Text style={styles.solicitudPrice}>{solicitud.price}</Text>
-          <Text style={styles.solicitudDetails}>{solicitud.details}</Text>
-          <Text style={styles.solicitudPeriod}>{solicitud.period}</Text>
-        </View>
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color={colors.blue} />
       </View>
-    ));
-  };
+    );
+  }
 
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Solicitudes</Text>
 
-      {/* Tabs para cambiar entre los diferentes estados */}
-    
+      {/* Tabs para filtrar por estado */}
+      <View style={styles.tabs}>
+        {["todos", "aceptados", "pendientes", "negados"].map((tab) => (
+          <TouchableOpacity
+            key={tab}
+            style={[styles.tab, activeTab === tab ? styles.activeTab : null]}
+            onPress={() => setActiveTab(tab as any)}
+          >
+            <Text style={styles.tabText}>
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
-      {/* Mostrar solicitudes según la pestaña activa */}
       <ScrollView contentContainerStyle={styles.solicitudesList}>
-        {renderSolicitudes()}
+        {puntos.length === 0 ? (
+          <Text style={{ textAlign: "center", marginTop: 20, color: "#999" }}>
+            No hay solicitudes para mostrar
+          </Text>
+        ) : (
+          puntos.map(({ viaje, punto }, index) => (
+            <View key={`${viaje.id}-${index}`} style={styles.solicitudCard}>
+              <View style={styles.solicitudInfo}>
+                <Text style={styles.solicitudTitle}>Viaje: {viaje.direccion}</Text>
+                <Text style={styles.solicitudPrice}>Estado del viaje: por iniciar</Text>
+                <Text style={styles.solicitudDetails}>Estado del punto: {punto.estado}</Text>
+                <Text style={styles.solicitudDetails}>Fecha: {viaje.fecha || "N/A"}</Text>
+                <Text style={styles.solicitudDetails}>Hora: {viaje.horaSalida || "N/A"}</Text>
+                <Text style={styles.solicitudDetails}>Dirección del punto: {punto.direccion || "N/A"}</Text>
+              </View>
+            </View>
+          ))
+        )}
       </ScrollView>
     </View>
   );
@@ -55,15 +139,15 @@ export default function Solicitudes() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
     paddingHorizontal: 20,
     paddingTop: 40,
+    backgroundColor: "#fff",
   },
   header: {
     fontSize: 28,
     fontWeight: "600",
-    color: "#000",
     marginBottom: 20,
+    color: "#000",
   },
   tabs: {
     flexDirection: "row",
@@ -73,18 +157,22 @@ const styles = StyleSheet.create({
   tab: {
     paddingVertical: 10,
     paddingHorizontal: 20,
-    backgroundColor: "#EAEAEA",
     borderRadius: 20,
+    backgroundColor: "#EAEAEA",
+    marginHorizontal: 3,
   },
   activeTab: {
-    backgroundColor: "#007BFF", // Azul cuando está activo
+    backgroundColor: "#007BFF",
   },
   tabText: {
-    color: "#000",
+    color: "#fff",
     fontWeight: "600",
   },
+  solicitudesList: {
+    paddingBottom: 100,
+  },
   solicitudCard: {
-    backgroundColor: "#F0F8FF", // Fondo azul claro para cada tarjeta
+    backgroundColor: "#F0F8FF",
     borderRadius: 10,
     marginBottom: 15,
     padding: 15,
@@ -104,13 +192,6 @@ const styles = StyleSheet.create({
   solicitudDetails: {
     fontSize: 12,
     marginBottom: 5,
-    color: "#007BFF", // Color azul para los detalles
-  },
-  solicitudPeriod: {
-    fontSize: 12,
-    color: "#007BFF", // Color azul para el periodo
-  },
-  solicitudesList: {
-    paddingBottom: 100,
+    color: "#007BFF",
   },
 });

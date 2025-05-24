@@ -99,9 +99,10 @@ export default function Viajes() {
               {viajesEnCurso[0].fecha}, {viajesEnCurso[0].horaSalida},{" "}
               {viajesEnCurso[0].direccion}
             </Text>
-            <TouchableOpacity>
-              <Text style={styles.verDetalles}>Ver detalles</Text>
-            </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/detallesViaje/qr')}>
+            <Text style={styles.verDetalles}>Ver detalles</Text>
+          </TouchableOpacity>
+
           </View>
           <Image
             source={require("../../assets/images/carImage.png")}

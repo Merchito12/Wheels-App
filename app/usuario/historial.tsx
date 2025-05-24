@@ -1,60 +1,126 @@
-import colors from '@/styles/Colors';
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image } from 'react-native';
-import { Searchbar } from 'react-native-paper';  // Importar Searchbar de Expo
-import { SortIcon,StarIcon,ArrowRight } from '@/components/Icons';  // Asegúrate de tener este icono
+import React, { useState, useEffect } from "react";
+import { 
+  View, Text, TouchableOpacity, StyleSheet, Image, ScrollView, ActivityIndicator, Modal 
+} from "react-native";
+import { Searchbar } from "react-native-paper";
+import colors from "../../styles/Colors"; 
+import { StarIcon, ArrowRight } from "../../components/Icons"; 
+import { useCliente } from "../../context/viajeContext/viajeClienteContext";
+
 export default function MisViajes() {
-  const [searchQuery, setSearchQuery] = useState('');  // Estado para la búsqueda
+  const [searchQuery, setSearchQuery] = useState('');
+  const [viajes, setViajes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedViaje, setSelectedViaje] = useState<any>(null);
+  const [modalVisible, setModalVisible] = useState(false);
 
-  const onChangeSearch = (query: React.SetStateAction<string>) => setSearchQuery(query);
+  useCliente(); // o desde authContext si es necesario
+  const { obtenerViajesPorEstadoViajeYEstadoPunto } = useCliente();
 
-  // Datos simulados para los viajes (como si vinieran de una base de datos)
-  const viajes = [
-    { id: 1, fecha: '12/05/2025, 10:00', direccion: 'Calle 123', parada: 'Parada A' },
-    { id: 2, fecha: '13/05/2025, 14:00', direccion: 'Calle 456', parada: 'Parada B' },
-    { id: 3, fecha: '14/05/2025, 16:00', direccion: 'Calle 789', parada: 'Parada C' },
-     { id: 3, fecha: '14/05/2025, 16:00', direccion: 'Calle 789', parada: 'Parada C' },
-      { id: 3, fecha: '14/05/2025, 16:00', direccion: 'Calle 789', parada: 'Parada C' },
-      
-  ];
+  const onChangeSearch = (query: string) => setSearchQuery(query);
+
+  useEffect(() => {
+    async function cargarViajes() {
+      setLoading(true);
+      try {
+        // Obtenemos viajes finalizados con puntos aceptados
+        const viajesFiltrados = await obtenerViajesPorEstadoViajeYEstadoPunto("finalizado", "aceptado");
+        setViajes(viajesFiltrados);
+      } catch (error) {
+        console.error("Error cargando viajes:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    cargarViajes();
+  }, []);
+
+  // Función para abrir modal y mostrar detalles
+  const abrirDetalles = (viaje: any) => {
+    setSelectedViaje(viaje);
+    setModalVisible(true);
+  };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Tus viajes Anteriores</Text>
+      <Text style={styles.header}>Tus viajes finalizados</Text>
 
-      {/* Barra de búsqueda */}
       <Searchbar
         placeholder="Buscar viaje..."
         value={searchQuery}
         onChangeText={onChangeSearch}
         style={styles.searchbar}
       />
-          <TouchableOpacity style={styles.sort}>
-          <SortIcon color={colors.grey} /> <Text style={styles.buttonText}>Sort</Text>
-        </TouchableOpacity>
-    
-      <ScrollView showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollContainer}>
-        {viajes.map((viaje) => (
-          <View key={viaje.id} style={styles.tripCard}>
-            <Image
-               source={require("../../assets/images/carImage.png")} 
-              style={styles.image}
-            />
-            <View style={styles.tripInfo}>
-              <Text style={styles.tripDate}>{viaje.fecha}</Text>
-              <Text style={styles.tripDetails}>
-                {viaje.direccion}, {viaje.parada}
-              </Text>
-            </View>
-            <View style={styles.starsContainer}>
-             <Text style={styles.tripDetails}>5</Text>
-            <StarIcon color={colors.blue} />
-      
-            </View>
-             <ArrowRight  color={colors.grey} />
+
+      {loading ? (
+        <ActivityIndicator size="large" color={colors.blue} />
+      ) : viajes.length === 0 ? (
+        <Text style={{textAlign: 'center', marginTop: 20}}>No hay viajes finalizados con puntos aceptados.</Text>
+      ) : (
+        <ScrollView contentContainerStyle={styles.scrollContainer}>
+          {viajes.map((viaje) => (
+            <TouchableOpacity 
+              key={viaje.id} 
+              style={styles.tripCard} 
+              onPress={() => abrirDetalles(viaje)}
+            >
+              <Image
+                source={require("../../assets/images/carImage.png")} 
+                style={styles.image}
+              />
+              <View style={styles.tripInfo}>
+                <Text style={styles.tripDate}>{viaje.fecha}</Text>
+                <Text style={styles.tripDetails}>{viaje.direccion}</Text>
+                <Text style={styles.tripDetails}>Conductor: {viaje.conductor || "Desconocido"}</Text>
+              </View>
+              <View style={styles.starsContainer}>
+                <Text style={styles.tripDetails}>5</Text>
+                <StarIcon color={colors.blue} />
+              </View>
+              <ArrowRight  color={colors.grey} />
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+
+      {/* Modal para detalles del viaje */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Detalles del viaje</Text>
+            {selectedViaje ? (
+              <ScrollView style={{ maxHeight: 300 }}>
+                <Text style={styles.modalSubtitle}>Dirección: {selectedViaje.direccion}</Text>
+                <Text style={styles.modalSubtitle}>Fecha: {selectedViaje.fecha}</Text>
+                <Text style={styles.modalSubtitle}>Hora: {selectedViaje.horaSalida}</Text>
+                <Text style={styles.modalSubtitle}>Conductor: {selectedViaje.conductor}</Text>
+
+                <Text style={[styles.modalSubtitle, { marginTop: 15 }]}>Puntos Aceptados:</Text>
+                {selectedViaje.puntos
+                  ?.filter((p: any) => p.estado === "aceptado")
+                  .map((punto: any, index: number) => (
+                    <View key={index} style={styles.puntoCard}>
+                      <Text>Dirección: {punto.direccion || "N/A"}</Text>
+                      <Text>Estado: {punto.estado}</Text>
+                    </View>
+                ))}
+              </ScrollView>
+            ) : null}
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setModalVisible(false)}
+            >
+              <Text style={styles.closeButtonText}>Cerrar</Text>
+            </TouchableOpacity>
           </View>
-        ))}
-      </ScrollView>
+        </View>
+      </Modal>
+
     </View>
   );
 }
@@ -64,28 +130,12 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 80,
     paddingHorizontal: 20,
-    backgroundColor:colors.white ,
-  },
-  starsContainer: { 
-    flexDirection: 'row',  // Alinea los elementos en fila
-    alignItems: 'center',  // Centra verticalmente
-    marginBottom:0,
-    justifyContent: 'space-between',
-    marginRight: 50,
-  },
-  sort: {
-    width: 100,
-    backgroundColor: colors.lightBlue,
-    paddingVertical: 8,
-    paddingHorizontal: 15,
-    borderRadius: 20,
-    flexDirection: 'row',  
-    alignItems: 'center',  
+    backgroundColor: colors.white,
   },
   header: {
     fontSize: 28,
-    fontWeight: '600',
-    color: '#000',
+    fontWeight: "600",
+    color: "#000",
     marginBottom: 20,
   },
   searchbar: {
@@ -93,61 +143,87 @@ const styles = StyleSheet.create({
     backgroundColor: colors.lightGrey,
   },
   scrollContainer: {
-    
-    paddingTop:20, 
-    paddingBottom:100, 
+    paddingBottom: 100,
   },
   tripCard: {
-    backgroundColor: colors.lightBlue, 
+    backgroundColor: colors.lightBlue,
     borderRadius: 10,
     marginBottom: 15,
     padding: 15,
-    flexDirection: 'row',  
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     borderWidth: 1,
-    borderColor: colors.lightGreyrows,
+    borderColor: colors.lightGrey,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 2,
-    marginRight: 10,
-    marginLeft: 10,
   },
   image: {
     width: 50,
     height: 50,
-    resizeMode: 'contain',
+    resizeMode: "contain",
     borderRadius: 25,
-    marginRight: 15,  
+    marginRight: 15,
   },
   tripInfo: {
     flex: 1,
   },
   tripDate: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 5,
-  },
-  buttonText: {
-    marginLeft: 10, 
-    color: colors.black,
-    fontSize: 16,
   },
   tripDetails: {
     fontSize: 14,
-    color: '#888',
-    marginRight: 10,
+    color: "#555",
+    marginBottom: 2,
   },
-  viewButton: {
+  starsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  modalContainer: {
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    padding: 20,
+    width: "100%",
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    marginBottom: 15,
+  },
+  modalSubtitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 10,
+  },
+  puntoCard: {
+    backgroundColor: colors.lightGrey,
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  closeButton: {
     backgroundColor: colors.blue,
-    paddingVertical: 8,
-    paddingHorizontal: 15,
+    paddingVertical: 12,
     borderRadius: 10,
+    marginTop: 10,
+    alignItems: "center",
   },
-  viewButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
+  closeButtonText: {
+    color: colors.white,
+    fontWeight: "bold",
   },
 });

@@ -1,19 +1,39 @@
-import React, { useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Image, ScrollView } from "react-native";
+import React, { useState, useEffect } from "react";
+import { 
+  View, Text, TouchableOpacity, StyleSheet, Image, ScrollView, ActivityIndicator 
+} from "react-native";
 import { Searchbar } from "react-native-paper";
+import { Ionicons } from '@expo/vector-icons';  // <-- Importa Ionicons aquí
 import colors from "../../styles/Colors"; 
 import { SortIcon, FilterIcon } from "../../components/Icons"; 
+import { useCliente } from "../../context/viajeContext/viajeClienteContext"; 
 
 export default function Index() {
-  const [step, setStep] = useState(0);  // Para controlar las diferentes vistas
-  const [redirect, setRedirect] = useState(false); // Para controlar el redireccionamiento
   const [searchQuery, setSearchQuery] = useState("");
+  const [viajesPorIniciar, setViajesPorIniciar] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const onChangeSearch = (query: React.SetStateAction<string>) => setSearchQuery(query);
-  
+  const { obtenerViajesPorEstado } = useCliente();
+
+  const onChangeSearch = (query: string) => setSearchQuery(query);
+
+  useEffect(() => {
+    async function cargarViajes() {
+      setLoading(true);
+      try {
+        const viajes = await obtenerViajesPorEstado("por iniciar");
+        setViajesPorIniciar(viajes);
+      } catch (error) {
+        console.error("Error cargando viajes:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    cargarViajes();
+  }, []);
+
   return (
     <View style={styles.container}>
-
       <Searchbar
         placeholder="Buscar viaje..."
         value={searchQuery}
@@ -21,51 +41,69 @@ export default function Index() {
         style={styles.barraBusqueda}
       />
       <View style={styles.buttonsContainer}>
-        
-
         <TouchableOpacity style={styles.sort}>
           <SortIcon color={colors.grey} /> <Text style={styles.buttonText}>Sort</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.filter}>       
-        <FilterIcon color={colors.grey} /> <Text style={styles.buttonText}>Filter</Text>
+          <FilterIcon color={colors.grey} /> <Text style={styles.buttonText}>Filter</Text>
         </TouchableOpacity>
       </View>
 
- 
       <View style={styles.headerContainer}>
-  <View style={styles.textContainer}>
-    <Text style={styles.headerTitle}>Viaje en Curso</Text>
-    <Text style={styles.headerSubtitle}>
-      fecha, hora de inicio, dirección, sector
-    </Text>
-    <TouchableOpacity style={styles.detailsButton}>
-      <Text style={styles.detailsButtonText}>Ver detalles</Text>
-    </TouchableOpacity>
-  </View>
-  <Image
-    source={require("../../assets/images/carImage.png")}  // Ruta local a tu imagen
-    style={styles.carImage}
-  />
-</View>
-
+        <View style={styles.textContainer}>
+          <Text style={styles.headerTitle}>Viaje en Curso</Text>
+          <Text style={styles.headerSubtitle}>
+            {viajesPorIniciar.length > 0
+              ? `${viajesPorIniciar[0].fecha}, ${viajesPorIniciar[0].horaSalida}, ${viajesPorIniciar[0].direccion}`
+              : "No hay viajes por iniciar"}
+          </Text>
+          <TouchableOpacity style={styles.detailsButton}>
+            <Text style={styles.detailsButtonText}>Ver detalles</Text>
+          </TouchableOpacity>
+        </View>
+        <Image
+          source={require("../../assets/images/carImage.png")} 
+          style={styles.carImage}
+        />
+      </View>
 
       {/* Viajes disponibles */}
       <ScrollView showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollContainer}>
         <View style={styles.tripsContainer}>
-          {["Viaje 1", "Viaje 2", "Viaje 3", "Viaje 4", "Viaje 4"].map((viaje, index) => (
-            <View key={index} style={styles.tripCard}>
-              <Image
-      source={require("../../assets/images/carImage.png")}
-                style={styles.image}
-              />
-              <Text style={styles.tripName}>{viaje}</Text>
-              <Text style={styles.tripPrice}>€ 12.00</Text>
-              <TouchableOpacity style={styles.reserveButton}>
-                <Text style={styles.reserveButtonText}>Reservar</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
+          {loading ? (
+            <ActivityIndicator size="large" color={colors.blue} />
+          ) : viajesPorIniciar.length === 0 ? (
+            <Text>No hay viajes por iniciar</Text>
+          ) : (
+            viajesPorIniciar.map((viaje, index) => (
+              <View key={viaje.id} style={styles.tripCard}>
+                <Image
+                  source={require("../../assets/images/carImage.png")}
+                  style={styles.image}
+                />
+                <Text style={styles.tripName}>
+                  {viaje.direccion} {/* Dirección del viaje */}
+                </Text>
+                <Text style={styles.conductorName}>Conductor: {viaje.conductor || "Desconocido"}</Text>
+                <Text style={styles.tripPrice}>€ {viaje.precio}</Text>
+
+                {/* Aquí están los iconos antes de fecha y hora */}
+                <View style={styles.row}>
+                  <Ionicons name="calendar-outline" size={16} color={colors.grey} />
+                  <Text style={styles.dateText}> {viaje.fecha}</Text>
+                </View>
+                <View style={styles.row}>
+                  <Ionicons name="time-outline" size={16} color={colors.grey} />
+                  <Text style={styles.dateText}> {viaje.horaSalida}</Text>
+                </View>
+
+                <TouchableOpacity style={styles.reserveButton}>
+                  <Text style={styles.reserveButtonText}>Reservar</Text>
+                </TouchableOpacity>
+              </View>
+            ))
+          )}
         </View>
       </ScrollView>
     </View>
@@ -85,7 +123,7 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     flexGrow: 1,
-    paddingBottom: 100,  // Para darle espacio a los botones
+    paddingBottom: 100,
   },
   headerContainer: {
     backgroundColor: colors.blue,
@@ -93,13 +131,13 @@ const styles = StyleSheet.create({
     paddingRight: 0,
     borderRadius: 10,
     marginBottom: 20,
-    flexDirection: "row",  // Coloca los elementos en fila
-    justifyContent: "space-between",  // Espacio entre los textos y la imagen
-    alignItems: "center",  // Alinea verticalmente
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   textContainer: {
-    flex: 1,  // Hace que el texto ocupe el espacio disponible en el contenedor
-    justifyContent: "center",  // Centra el contenido verticalmente
+    flex: 1,
+    justifyContent: "center",
   },
   headerTitle: {
     fontSize: 22,
@@ -108,11 +146,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   headerSubtitle: {
-   
     fontSize: 14,
     color: colors.white,
     marginBottom: 20,
-  },carImage: {
+  },
+  carImage: {
     width: 100,
     height: 100,
     resizeMode: "contain",
@@ -127,11 +165,10 @@ const styles = StyleSheet.create({
   },
   detailsButtonText: {
     color: colors.blue,
-   
   },
   buttonsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginBottom: 20,
   },
   sort: {
@@ -139,19 +176,19 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 15,
     borderRadius: 20,
-    flexDirection: 'row',  
-    alignItems: 'center',  
+    flexDirection: "row",
+    alignItems: "center",
   },
   filter: {
     backgroundColor: colors.lightBlue,
     paddingVertical: 8,
     paddingHorizontal: 15,
     borderRadius: 20,
-    flexDirection: 'row', 
-    alignItems: 'center',  
+    flexDirection: "row",
+    alignItems: "center",
   },
   buttonText: {
-    marginLeft: 10, 
+    marginLeft: 10,
     color: colors.black,
     fontSize: 16,
   },
@@ -167,18 +204,16 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     borderRadius: 10,
     padding: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
-    borderColor: colors.lightGreyrows,
+    borderColor: colors.lightGrey,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 2,
-    
   },
-  
   image: {
     width: "100%",
     height: 100,
@@ -191,6 +226,11 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginBottom: 5,
   },
+  conductorName: {
+    fontSize: 14,
+    color: colors.darkGrey,
+    marginBottom: 8,
+  },
   tripPrice: {
     fontSize: 14,
     marginBottom: 15,
@@ -200,23 +240,20 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 20,
     borderRadius: 20,
+    marginTop: 10,
+    marginBottom: 5,
   },
   reserveButtonText: {
     color: colors.white,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
-  mainButton: {
-    backgroundColor: colors.blue,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-    width: "85%",
-    position: "absolute",
-    bottom: 30,
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 5,
   },
-  mainButtonText: {
-    color: colors.white,
-    fontSize: 16,
-    fontWeight: "600",
+  dateText: {
+    fontSize: 14,
+    color: colors.black,
   },
 });

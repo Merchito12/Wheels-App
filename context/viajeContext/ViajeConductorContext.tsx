@@ -7,7 +7,6 @@ import {
   onSnapshot, 
   doc,
   getDoc,
-  setDoc,
   updateDoc,
   addDoc,
 } from "firebase/firestore";
@@ -45,7 +44,7 @@ interface ViajeContextProps {
     estado: EstadoPunto
   ) => Promise<Punto[]>;
   crearViaje: (
-    nuevoViaje: Omit<Viaje, "id" | "puntos" | "idConductor">
+    nuevoViaje: Omit<Viaje, "id" | "puntos" | "idConductor" | "conductor">
   ) => Promise<string>;
   obtenerPuntosPorEstado: (
     estado: EstadoPunto
@@ -77,13 +76,14 @@ export const ViajeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [user]);
 
   const crearViaje = async (
-    nuevoViaje: Omit<Viaje, "id" | "puntos" | "idConductor">
+    nuevoViaje: Omit<Viaje, "id" | "puntos" | "idConductor" | "conductor">
   ): Promise<string> => {
     if (!user) throw new Error("No hay usuario logueado");
 
     const viajeAGuardar = {
       ...nuevoViaje,
       idConductor: user.uid,
+      conductor: user.displayName || "Conductor desconocido",
       puntos: [] as Punto[],
     };
 
@@ -123,9 +123,7 @@ export const ViajeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     querySnapshot.forEach((doc) => {
       const { id, ...data } = doc.data() as Viaje;
       const viaje = { id: doc.id, ...data };
-      console.log("Viaje leído:", viaje); // <-- Revisa aquí los datos
       viaje.puntos.forEach((punto) => {
-        console.log("Punto dentro del viaje:", punto); // <-- También revisa puntos
         solicitudes.push({ viaje, punto });
       });
     });
@@ -133,7 +131,6 @@ export const ViajeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return solicitudes;
   };
   
-
   const solicitudesDePuntosPorEstado = async (
     viajeId: string,
     estado: EstadoPunto
@@ -145,6 +142,7 @@ export const ViajeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const viaje = viajeSnap.data() as Viaje;
     return viaje.puntos.filter((p) => p.estado === estado);
   };
+
   const obtenerPuntosPorEstado = async (
     estado: EstadoPunto
   ): Promise<{ viajeId: string; viajeDireccion: string; punto: Punto }[]> => {
@@ -159,11 +157,9 @@ export const ViajeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     querySnapshot.forEach((doc) => {
       const data = doc.data() as Omit<Viaje, "id">;
       const viaje = { id: doc.id, ...data };
-      console.log("Viaje cargado:", viaje);
       viaje.puntos
         .filter((p) => p.estado === estado)
         .forEach((punto) => {
-          console.log("Punto filtrado:", punto);
           resultados.push({
             viajeId: viaje.id,
             viajeDireccion: viaje.direccion,
@@ -172,34 +168,27 @@ export const ViajeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         });
     });
     
-  
     return resultados;
   };
   
-  
-
   return (
     <ViajeContext.Provider
-  value={{
-    viajes,
-    crearViaje,
-    viajesFiltradosPorEstado,
-    solicitudesDePuntos,
-    solicitudesDePuntosPorEstado,
-    obtenerPuntosPorEstado,  // <-- Aquí
-  }}
->
-  {children}
-</ViajeContext.Provider>
-
+      value={{
+        viajes,
+        crearViaje,
+        viajesFiltradosPorEstado,
+        solicitudesDePuntos,
+        solicitudesDePuntosPorEstado,
+        obtenerPuntosPorEstado,
+      }}
+    >
+      {children}
+    </ViajeContext.Provider>
   );
 };
 
-
-
 export const useViajes = () => {
   const context = useContext(ViajeContext);
-  if (!context)
-    throw new Error("useViajes debe usarse dentro de un ViajeProvider");
+  if (!context) throw new Error("useViajes debe usarse dentro de un ViajeProvider");
   return context;
 };
