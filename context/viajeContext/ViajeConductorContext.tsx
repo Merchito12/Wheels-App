@@ -1,16 +1,16 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { 
-  collection, 
-  query, 
-  where, 
-  getDocs, 
-  onSnapshot, 
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  onSnapshot,
   doc,
   getDoc,
   updateDoc,
   addDoc,
 } from "firebase/firestore";
-import { db } from "../../utils/FirebaseConfig"; 
+import { db } from "../../utils/FirebaseConfig";
 import { useAuth } from "../authContext/AuthContext";
 
 type EstadoViaje = "por iniciar" | "en curso" | "finalizado";
@@ -33,26 +33,34 @@ export interface Viaje {
   precio: string;
   puntos: Punto[];
   estado: EstadoViaje;
-  cuposDisponibles: number; 
 }
-
-interface NuevoViajeInput extends Omit<Viaje, "id" | "puntos" | "idConductor" | "conductor"> {}
 
 interface ViajeContextProps {
   viajes: Viaje[];
+  crearViaje: (
+    nuevoViaje: Omit<Viaje, "id" | "puntos" | "idConductor" | "conductor">
+  ) => Promise<string>;
   viajesFiltradosPorEstado: (estado: EstadoViaje) => Promise<Viaje[]>;
   solicitudesDePuntos: () => Promise<{ viaje: Viaje; punto: Punto }[]>;
   solicitudesDePuntosPorEstado: (
     viajeId: string,
     estado: EstadoPunto
   ) => Promise<Punto[]>;
-  crearViaje: (
-    nuevoViaje: NuevoViajeInput
-  ) => Promise<string>;
-  reservarCupo: (viajeId: string) => Promise<void>;
-  liberarCupo: (viajeId: string) => Promise<void>;
   obtenerPuntosPorEstado: (
     estado: EstadoPunto
+  ) => Promise<{ viajeId: string; viajeDireccion: string; punto: Punto }[]>;
+  actualizarEstadoPunto: (
+    viajeId: string,
+    idCliente: string,
+    nuevoEstado: EstadoPunto
+  ) => Promise<void>;
+  actualizarEstadoViaje: (
+    viajeId: string,
+    nuevoEstado: EstadoViaje
+  ) => Promise<void>;
+  obtenerPuntosPorEstadoYEstadoViaje: (
+    estadoPunto: EstadoPunto,
+    estadoViaje: EstadoViaje
   ) => Promise<{ viajeId: string; viajeDireccion: string; punto: Punto }[]>;
 }
 
@@ -71,7 +79,7 @@ export const ViajeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const viajesArray: Viaje[] = [];
       querySnapshot.forEach((doc) => {
-        const data = doc.data() as Omit<Viaje, "id">;
+        const { id, ...data } = doc.data() as Viaje;
         viajesArray.push({ id: doc.id, ...data });
       });
       setViajes(viajesArray);
@@ -81,7 +89,7 @@ export const ViajeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [user]);
 
   const crearViaje = async (
-    nuevoViaje: NuevoViajeInput
+    nuevoViaje: Omit<Viaje, "id" | "puntos" | "idConductor" | "conductor">
   ): Promise<string> => {
     if (!user) throw new Error("No hay usuario logueado");
 
@@ -110,7 +118,7 @@ export const ViajeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const viajesFiltrados: Viaje[] = [];
     querySnapshot.forEach((doc) => {
-      const data = doc.data() as Omit<Viaje, "id">;
+      const { id, ...data } = doc.data() as Viaje;
       viajesFiltrados.push({ id: doc.id, ...data });
     });
     return viajesFiltrados;
@@ -118,24 +126,24 @@ export const ViajeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const solicitudesDePuntos = async () => {
     if (!user) return [];
-  
+
     const viajesRef = collection(db, "viajes");
     const q = query(viajesRef, where("idConductor", "==", user.uid));
     const querySnapshot = await getDocs(q);
-  
+
     const solicitudes: { viaje: Viaje; punto: Punto }[] = [];
-  
+
     querySnapshot.forEach((doc) => {
-      const data = doc.data() as Omit<Viaje, "id">;
+      const { id, ...data } = doc.data() as Viaje;
       const viaje = { id: doc.id, ...data };
       viaje.puntos.forEach((punto) => {
         solicitudes.push({ viaje, punto });
       });
     });
-  
+
     return solicitudes;
   };
-  
+
   const solicitudesDePuntosPorEstado = async (
     viajeId: string,
     estado: EstadoPunto
@@ -152,13 +160,13 @@ export const ViajeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     estado: EstadoPunto
   ): Promise<{ viajeId: string; viajeDireccion: string; punto: Punto }[]> => {
     if (!user) return [];
-  
+
     const viajesRef = collection(db, "viajes");
     const q = query(viajesRef, where("idConductor", "==", user.uid));
     const querySnapshot = await getDocs(q);
-  
+
     const resultados: { viajeId: string; viajeDireccion: string; punto: Punto }[] = [];
-  
+
     querySnapshot.forEach((doc) => {
       const data = doc.data() as Omit<Viaje, "id">;
       const viaje = { id: doc.id, ...data };
@@ -172,45 +180,74 @@ export const ViajeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           });
         });
     });
-    
+
     return resultados;
   };
 
-  const reservarCupo = async (viajeId: string): Promise<void> => {
-    const viajeDocRef = doc(db, "viajes", viajeId);
-    const viajeSnap = await getDoc(viajeDocRef);
+  const obtenerPuntosPorEstadoYEstadoViaje = async (
+    estadoPunto: EstadoPunto,
+    estadoViaje: EstadoViaje
+  ): Promise<{ viajeId: string; viajeDireccion: string; punto: Punto }[]> => {
+    if (!user) return [];
 
-    if (!viajeSnap.exists()) throw new Error("Viaje no existe");
+    const viajesRef = collection(db, "viajes");
+    const q = query(
+      viajesRef,
+      where("idConductor", "==", user.uid),
+      where("estado", "==", estadoViaje)
+    );
+    const querySnapshot = await getDocs(q);
 
-    const viajeData = viajeSnap.data() as Viaje;
+    const resultados: { viajeId: string; viajeDireccion: string; punto: Punto }[] = [];
 
-    if (viajeData.cuposDisponibles <= 0) {
-      throw new Error("No hay cupos disponibles");
-    }
+    querySnapshot.forEach((doc) => {
+      const data = doc.data() as Omit<Viaje, "id">;
+      const viaje = { id: doc.id, ...data };
+      viaje.puntos
+        .filter((p) => p.estado === estadoPunto)
+        .forEach((punto) => {
+          resultados.push({
+            viajeId: viaje.id,
+            viajeDireccion: viaje.direccion,
+            punto,
+          });
+        });
+    });
 
-    const nuevosCupos = viajeData.cuposDisponibles - 1;
-    const nuevoEstado: EstadoViaje = nuevosCupos === 0 ? "finalizado" : viajeData.estado;
+    return resultados;
+  };
 
-    await updateDoc(viajeDocRef, {
-      cuposDisponibles: nuevosCupos,
-      estado: nuevoEstado,
+  const actualizarEstadoPunto = async (
+    viajeId: string,
+    idCliente: string,
+    nuevoEstado: EstadoPunto
+  ): Promise<void> => {
+    const viajeRef = doc(db, "viajes", viajeId);
+    const viajeSnap = await getDoc(viajeRef);
+
+    if (!viajeSnap.exists()) throw new Error("El viaje no existe");
+
+    const viaje = viajeSnap.data() as Viaje;
+
+    const puntosActualizados = viaje.puntos.map((punto) =>
+      punto.idCliente === idCliente ? { ...punto, estado: nuevoEstado } : punto
+    );
+
+    await updateDoc(viajeRef, {
+      puntos: puntosActualizados,
     });
   };
 
-  const liberarCupo = async (viajeId: string): Promise<void> => {
-    const viajeDocRef = doc(db, "viajes", viajeId);
-    const viajeSnap = await getDoc(viajeDocRef);
+  const actualizarEstadoViaje = async (
+    viajeId: string,
+    nuevoEstado: EstadoViaje
+  ): Promise<void> => {
+    const viajeRef = doc(db, "viajes", viajeId);
+    const viajeSnap = await getDoc(viajeRef);
 
-    if (!viajeSnap.exists()) throw new Error("Viaje no existe");
+    if (!viajeSnap.exists()) throw new Error("El viaje no existe");
 
-    const viajeData = viajeSnap.data() as Viaje;
-
-    const nuevosCupos = viajeData.cuposDisponibles + 1;
-
-    const nuevoEstado: EstadoViaje = viajeData.estado === "finalizado" ? "por iniciar" : viajeData.estado;
-
-    await updateDoc(viajeDocRef, {
-      cuposDisponibles: nuevosCupos,
+    await updateDoc(viajeRef, {
       estado: nuevoEstado,
     });
   };
@@ -223,9 +260,10 @@ export const ViajeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         viajesFiltradosPorEstado,
         solicitudesDePuntos,
         solicitudesDePuntosPorEstado,
-        reservarCupo,
-        liberarCupo,
         obtenerPuntosPorEstado,
+        actualizarEstadoPunto,
+        actualizarEstadoViaje,
+        obtenerPuntosPorEstadoYEstadoViaje,
       }}
     >
       {children}

@@ -12,10 +12,15 @@ import { Searchbar } from "react-native-paper";
 import { useAuth } from "../../context/authContext/AuthContext";
 import { useViajes } from "../../context/viajeContext/ViajeConductorContext";
 import colors from "../../styles/Colors";
+import { Ionicons } from '@expo/vector-icons';
+import { EstadoPunto } from "@/context/viajeContext/viajeClienteContext";
+import { useViajeSeleccionado } from '../../context/viajeContext/ViajeSeleccionadoContext';
+
 
 interface Punto {
   direccion: string;
   estado: string;
+  idCliente: string; // Added idCliente property
   // agrega más campos si tienes
 }
 
@@ -33,7 +38,8 @@ interface Viaje {
 
 export default function Viajes() {
   const { userName, user } = useAuth();
-  const { viajes, obtenerPuntosPorEstado } = useViajes();
+  const { viajes, obtenerPuntosPorEstado,
+    actualizarEstadoPunto,  obtenerPuntosPorEstadoYEstadoViaje  } = useViajes();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [viajesEnCurso, setViajesEnCurso] = useState<Viaje[]>([]);
@@ -41,6 +47,14 @@ export default function Viajes() {
   const [puntosPendientes, setPuntosPendientes] = useState<
     { viajeId: string; viajeDireccion: string; punto: Punto }[]
   >([]);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [accionPendiente, setAccionPendiente] = useState<{
+    viajeId: string;
+    idCliente: string;
+    nuevoEstado: EstadoPunto;
+  } | null>(null);
+  const { setViaje } = useViajeSeleccionado();
+
 
   const onChangeSearch = (query: string) => setSearchQuery(query);
 
@@ -55,18 +69,13 @@ export default function Viajes() {
 
   // Obtener puntos pendientes
   useEffect(() => {
-    async function fetchPuntosPendientes() {
+    async function fetchPendientesPorIniciar() {
       if (!user?.uid) return;
-      try {
-        const puntosConViaje = await obtenerPuntosPorEstado("pendiente");
-        // puntosConViaje ya tiene viajeId, viajeDireccion y punto
-        setPuntosPendientes(puntosConViaje);
-      } catch (error) {
-        console.error("Error al obtener puntos pendientes:", error);
-      }
+      const puntos = await obtenerPuntosPorEstadoYEstadoViaje("pendiente", "por iniciar");
+      setPuntosPendientes(puntos);
     }
-    fetchPuntosPendientes();
-  }, [user, obtenerPuntosPorEstado]);
+    fetchPendientesPorIniciar();
+  }, [user]);
 
   // Filtrar viajes por búsqueda (origen o destino)
   const viajesFiltrados = viajes.filter((viaje) => {
@@ -99,7 +108,7 @@ export default function Viajes() {
               {viajesEnCurso[0].fecha}, {viajesEnCurso[0].horaSalida},{" "}
               {viajesEnCurso[0].direccion}
             </Text>
-          <TouchableOpacity onPress={() => router.push('/detallesViaje/qr')}>
+          <TouchableOpacity onPress={() => router.push('../detallesViaje/conductor/EnCurso')}>
             <Text style={styles.verDetalles}>Ver detalles</Text>
           </TouchableOpacity>
 
@@ -113,56 +122,104 @@ export default function Viajes() {
 
       {/* Tus viajes */}
       <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Tus viajes</Text>
-          <TouchableOpacity>
-            <Text style={styles.verMas}>Ver más</Text>
-          </TouchableOpacity>
-        </View>
+  <View style={styles.sectionHeader}>
+    <Text style={styles.sectionTitle}>Tus viajes</Text>
+    <TouchableOpacity>
+      <Text style={styles.verMas}>Ver más</Text>
+    </TouchableOpacity>
+  </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {viajesFiltrados.length > 0 ? (
-            viajesFiltrados.map((viaje, index) => (
-              <View key={viaje.id} style={styles.viajeCard}>
-                <View style={styles.fechaTag}>
-                  <Text style={styles.fechaText}>{viaje.fecha}</Text>
-                </View>
-                <View style={styles.cardImage} />
-                <Text style={styles.viajeCiudad}>{viaje.direccion}</Text>
-                <Text style={styles.viajeDesc}>
-                  {viaje.horaSalida}, {viaje.precio}
-                </Text>
-                <Text style={styles.viajeSolicitudes}>{viaje.estado}</Text>
-                <TouchableOpacity style={styles.verInfoButton}>
-                  <Text style={styles.verInfoText}>Ver info</Text>
-                </TouchableOpacity>
-              </View>
-            ))
-          ) : (
-            <Text style={styles.noViajesText}>No tienes viajes creados aún.</Text>
-          )}
-        </ScrollView>
-      </View>
+  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+    {viajesFiltrados.length > 0 ? (
+      viajesFiltrados.map((viaje, index) => (
+        <View key={viaje.id} style={styles.viajeCard}>
+          <View style={styles.fechaTag}>
+            <Text style={styles.fechaText}>{viaje.fecha}</Text>
+          </View>
+
+          <View style={styles.cardImage} />
+
+          <Text style={styles.viajeCiudad}>{viaje.direccion}</Text>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+            <Ionicons name="time-outline" size={14} color="#555" />
+            <Text style={styles.viajeDesc}>{"  "}{viaje.horaSalida} h</Text>
+          </View>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+            <Ionicons name="cash-outline" size={14} color="#555" />
+            <Text style={styles.viajeDesc}>{"  "}${viaje.precio}</Text>
+          </View>
+
+          <Text style={styles.viajeSolicitudes}>{viaje.estado}</Text>
+
+          <TouchableOpacity
+            style={styles.verInfoButton}
+            onPress={() => {
+              setViaje(viaje);
+              router.push('/detallesViaje/conductor/PorIniciar');
+            }}
+          >
+            <Text style={styles.verInfoText}>Ver info</Text>
+          </TouchableOpacity>
+
+        </View>
+      ))
+    ) : (
+      <Text style={styles.noViajesText}>No tienes viajes creados aún.</Text>
+    )}
+  </ScrollView>
+</View>
+
 
       {/* Puntos Solicitados */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Puntos Solicitados</Text>
-        {puntosPendientes.length === 0 ? (
-          <Text>No hay puntos pendientes.</Text>
-        ) : (
-          puntosPendientes.map(({ viajeId, viajeDireccion, punto }, index) => (
-            <View key={`${viajeId}-${index}`} style={styles.puntoCard}>
-              <View style={styles.puntoImagen} />
-              <View>
-                <Text style={styles.puntoTitulo}>
-                  Punto {index + 1} - Viaje: {viajeDireccion}
-                </Text>
-                <Text style={styles.puntoDireccion}>{punto.direccion}</Text>
-                <Text style={styles.puntoDireccion}>Estado: {punto.estado}</Text>
-              </View>
+        {puntosPendientes.map(({ viajeId, viajeDireccion, punto }, index) => (
+          <View key={`${viajeId}-${index}`} style={styles.puntoCard}>
+            <View style={styles.puntoImagen} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.puntoTitulo}>
+                Punto {index + 1} - Viaje: {viajeDireccion}
+              </Text>
+              <Text style={styles.puntoDireccion}>{punto.direccion}</Text>
+              <Text style={styles.puntoDireccion}>Estado: {punto.estado}</Text>
             </View>
-          ))
-        )}
+
+            <View style={styles.puntoBotones}>
+              <TouchableOpacity
+                style={styles.btnNegar}
+                onPress={async () => {
+                  try {
+                    await actualizarEstadoPunto(viajeId, punto.idCliente, "negado");
+                    const puntosActualizados = await obtenerPuntosPorEstado("pendiente");
+                    setPuntosPendientes(puntosActualizados);
+                  } catch (err) {
+                    console.error("Error al negar punto:", err);
+                  }
+                }}
+              >
+                <Ionicons name="close" size={20} color="#fff" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.btnAceptar}
+                onPress={async () => {
+                  try {
+                    await actualizarEstadoPunto(viajeId, punto.idCliente, "aceptado");
+                    const puntosActualizados = await obtenerPuntosPorEstado("pendiente");
+                    setPuntosPendientes(puntosActualizados);
+                  } catch (err) {
+                    console.error("Error al aceptar punto:", err);
+                  }
+                }}
+              >
+                <Ionicons name="checkmark" size={20} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        ))}
+
       </View>
 
       {/* Botón "Crear Viaje" */}
@@ -178,7 +235,8 @@ export default function Viajes() {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 20,
+    paddingTop: 80,
+    paddingHorizontal: 20,
     backgroundColor: colors.white,
   },
   greetingText: {
@@ -231,6 +289,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 12,
+    
   },
   sectionTitle: {
     fontSize: 18,
@@ -338,4 +397,27 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
   },
+  puntoBotones: {
+    flexDirection: "row",
+    marginLeft: 10,
+    alignItems: "center",
+    gap: 8,
+  },
+  btnNegar: {
+    backgroundColor: "#e74c3c",
+    borderRadius: 20,
+    width: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  btnAceptar: {
+    backgroundColor: "#2ecc71",
+    borderRadius: 20,
+    width: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  
 });
