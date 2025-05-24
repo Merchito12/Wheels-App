@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -8,9 +8,12 @@ import {
   ActivityIndicator,
   Modal,
   ScrollView,
+  TextInput,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import colors from "../../styles/Colors";
+import { useCliente } from "../../context/viajeContext/viajeClienteContext"; // Ajusta ruta si es necesario
 
 interface ModalReservaViajeProps {
   visible: boolean;
@@ -29,101 +32,126 @@ export default function ModalReservaViaje({
   cargandoConductor,
   onAceptar,
 }: ModalReservaViajeProps) {
+  const { crearPuntoEnViaje } = useCliente();
+  const [sugerencia, setSugerencia] = useState("");
+  const [enviando, setEnviando] = useState(false);
+
+  const handleAceptar = async () => {
+    if (!sugerencia.trim()) {
+      Alert.alert("Validación", "Por favor ingresa una sugerencia antes de aceptar.");
+      return;
+    }
+    if (!viajeSeleccionado) {
+      Alert.alert("Error", "No hay viaje seleccionado.");
+      return;
+    }
+    setEnviando(true);
+    try {
+      await crearPuntoEnViaje(viajeSeleccionado.id, {
+        direccion: sugerencia.trim(),
+        estado: "pendiente",
+        idCliente: "", // El contexto asigna idCliente automáticamente
+      });
+      setSugerencia("");
+      onAceptar(); // Cierra modal o realiza acción extra
+    } catch (error) {
+      Alert.alert("Error", "No se pudo enviar la sugerencia.");
+      console.error(error);
+    } finally {
+      setEnviando(false);
+    }
+  };
+
   return (
     <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <ScrollView showsVerticalScrollIndicator={false}>
-            <TouchableOpacity style={styles.modalCloseButton} onPress={onClose}>
+            <TouchableOpacity style={styles.modalCloseButton} onPress={onClose} disabled={enviando}>
               <Ionicons name="close" size={28} color={colors.black} />
             </TouchableOpacity>
 
             {viajeSeleccionado ? (
               <>
-
                 <View style={styles.profileSection}>
-                  {conductorInfo?.profilePhotoURL? (
-                <Image
-                 source={{ uri: conductorInfo.profilePhotoURL }}
-                style={styles.profilePhoto}
-                 resizeMode="cover"
-                />
-                ) : (
-                     <View style={[styles.profilePhoto, {backgroundColor: '#ccc', justifyContent: 'center', alignItems: 'center'}]}>
-                 <Text>No hay foto</Text>
-                </View>
-                )}
+                  {conductorInfo?.profilePhotoURL ? (
+                    <Image
+                      source={{ uri: conductorInfo.profilePhotoURL }}
+                      style={styles.profilePhoto}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View
+                      style={[
+                        styles.profilePhoto,
+                        { backgroundColor: "#ccc", justifyContent: "center", alignItems: "center" },
+                      ]}
+                    >
+                      <Text>No hay foto</Text>
+                    </View>
+                  )}
                 </View>
 
-             
                 <View style={styles.nameSection}>
                   <Text style={styles.nameText}>{conductorInfo?.name || "No disponible"}</Text>
-                    <Text style={styles.ratingNumber}>5</Text>
-                    <Ionicons name="star" size={18} color="#FFD700" />
+                  <Text style={styles.ratingNumber}>5</Text>
+                  <Ionicons name="star" size={18} color="#FFD700" />
                 </View>
 
                 <View style={styles.rowInfoContainer}>
-                    
                   <View style={styles.seatsContainer}>
                     <View style={styles.row}>
-                  <Ionicons
-                    name="calendar-outline"
-                    size={25}
-                    color={colors.grey}
-                  />
-                  <Text style={styles.dateText}> {viajeSeleccionado.fecha}</Text>
-                </View>
-                <View style={styles.row}>
-                  <Ionicons name="time-outline" size={25} color={colors.grey} />
-                  <Text style={styles.dateText}> {viajeSeleccionado.horaSalida}</Text>
-                </View>
-                    <Text style={styles.availableSeats}>
-                      {viajeSeleccionado.cuposDisponibles} cupo{(conductorInfo?.car?.seats ?? 1) > 1 ? "s" : ""} disponible{(conductorInfo?.car?.seats ?? 1) > 1 ? "s" : ""}
-                    
-                    </Text>
-              
-                  
-                    
-                  </View>
-
-                <View style={styles.carInfoBox}>
-                {conductorInfo?.car?.photoURL ? (
-                 <Image
-                  source={{ uri: conductorInfo.car.photoURL }}
-                  style={styles.carPhoto}
-                   resizeMode="cover"
-                  />
-                    ) : (
-                  <View style={[styles.carPhoto, {backgroundColor: '#ccc', justifyContent: 'center', alignItems: 'center'}]}>
-                  <Text>No hay foto</Text>
-                 </View>
-                    )}  
-                 <Text style={styles.carInfoText}>
-                  {conductorInfo?.car?.brand || "Marca"} {conductorInfo?.car?.color || "Color"}
-                 </Text>
-  
-                 <Text style={styles.carInfoPlate}>{conductorInfo?.car?.plate || "Placa"}</Text>
-                </View>
-
-                </View>
-
-                {/* Reseñas */}
-                <View style={styles.reviewsContainer}>
-                  <Text style={styles.sectionTitle}>Reseñas</Text>
-                  <View style={styles.reviewBox}>
-                    <Text style={styles.reviewAuthor}>Manguito</Text>
-                    <View style={styles.reviewStars}>
-                      {[...Array(5)].map((_, i) => (
-                        <Ionicons key={i} name="star" size={16} color="#FFD700" />
-                      ))}
+                      <Ionicons name="calendar-outline" size={25} color={colors.grey} />
+                      <Text style={styles.dateText}> {viajeSeleccionado.fecha}</Text>
                     </View>
-                    <Text style={styles.reviewText}>
-                      "Lorem ipsum gusta mi novia aunque no me envíe picos"
+                    <View style={styles.row}>
+                      <Ionicons name="time-outline" size={25} color={colors.grey} />
+                      <Text style={styles.dateText}> {viajeSeleccionado.horaSalida}</Text>
+                    </View>
+                    <Text style={styles.availableSeats}>
+                      {viajeSeleccionado.cuposDisponibles} cupo
+                      {(conductorInfo?.car?.seats ?? 1) > 1 ? "s" : ""} disponible
+                      {(conductorInfo?.car?.seats ?? 1) > 1 ? "s" : ""}
                     </Text>
+                  </View>
+
+                  <View style={styles.carInfoBox}>
+                    {conductorInfo?.car?.photoURL ? (
+                      <Image
+                        source={{ uri: conductorInfo.car.photoURL }}
+                        style={styles.carPhoto}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View
+                        style={[
+                          styles.carPhoto,
+                          { backgroundColor: "#ccc", justifyContent: "center", alignItems: "center" },
+                        ]}
+                      >
+                        <Text>No hay foto</Text>
+                      </View>
+                    )}
+                    <Text style={styles.carInfoText}>
+                      {conductorInfo?.car?.brand || "Marca"} {conductorInfo?.car?.color || "Color"}
+                    </Text>
+                    <Text style={styles.carInfoPlate}>{conductorInfo?.car?.plate || "Placa"}</Text>
                   </View>
                 </View>
 
-                {/* Punto de encuentro */}
+                {/* Input para sugerencia */}
+                <View style={styles.sugerenciaContainer}>
+                  <TextInput
+                    placeholder="Escribe tu sugerencia de punto aquí..."
+                    style={styles.sugerenciaInput}
+                    value={sugerencia}
+                    onChangeText={setSugerencia}
+                    editable={!enviando}
+                    multiline
+                    numberOfLines={3}
+                  />
+                </View>
+
                 <View style={styles.meetingPointSection}>
                   <Text style={styles.meetingPointText}>
                     Punto de encuentro: {viajeSeleccionado?.direccion || "Dirección no disponible"}
@@ -134,26 +162,22 @@ export default function ModalReservaViaje({
                   </View>
                 </View>
 
-                {/* Imagen/mapa de ruta */}
                 <Image
                   source={{ uri: viajeSeleccionado?.mapImageUri || "" }}
                   style={styles.mapImage}
                   resizeMode="cover"
                 />
 
-                {/* Botones */}
-                <View style={styles.buttonsRow}>
-                  <TouchableOpacity style={styles.outlinedButton}>
-                    <Text style={styles.outlinedButtonText}>Sugerir Punto</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.outlinedButton}>
-                    <Text style={styles.outlinedButtonText}>Añadir Comentario</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Botón aceptar */}
-                <TouchableOpacity style={styles.acceptButton} onPress={onAceptar}>
-                  <Text style={styles.acceptButtonText}>Aceptar</Text>
+                <TouchableOpacity
+                  style={[styles.acceptButton, enviando && { opacity: 0.6 }]}
+                  onPress={handleAceptar}
+                  disabled={enviando}
+                >
+                  {enviando ? (
+                    <ActivityIndicator color={colors.white} />
+                  ) : (
+                    <Text style={styles.acceptButtonText}>Aceptar</Text>
+                  )}
                 </TouchableOpacity>
               </>
             ) : (
@@ -202,14 +226,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.blue,
   },
-  verificationBadge: {
-    position: "absolute",
-    right: -5,
-    bottom: 0,
-    backgroundColor: "#3B82F6",
-    borderRadius: 12,
-    padding: 2,
-  },
   nameSection: {
     alignItems: "center",
     marginBottom: 15,
@@ -223,25 +239,10 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: colors.black,
   },
-  starsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 5,
-  },
   ratingNumber: {
     fontWeight: "600",
     fontSize: 16,
     marginRight: 3,
-  },
-  ratingCount: {
-    fontSize: 14,
-    color: colors.grey,
-    marginLeft: 8,
-  },
-  membershipText: {
-    fontSize: 14,
-    color: colors.grey,
-    marginTop: 4,
   },
   rowInfoContainer: {
     flexDirection: "row",
@@ -256,7 +257,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     color: colors.black,
-    
   },
   carInfoBox: {
     flex: 1,
@@ -277,34 +277,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 20,
     color: colors.blue,
-  },
-  reviewsContainer: {
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 8,
-    color: colors.black,
-  },
-  reviewBox: {
-    borderWidth: 1,
-    borderColor: colors.grey,
-    borderRadius: 15,
-    padding: 15,
-  },
-  reviewAuthor: {
-    fontWeight: "700",
-    marginBottom: 4,
-    fontSize: 16,
-  },
-  reviewStars: {
-    flexDirection: "row",
-    marginBottom: 8,
-  },
-  reviewText: {
-    fontStyle: "italic",
-    color: colors.darkGrey,
   },
   meetingPointSection: {
     flexDirection: "row",
@@ -330,24 +302,18 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     backgroundColor: "#ccc",
   },
-  buttonsRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
+  sugerenciaContainer: {
     marginBottom: 15,
   },
-  outlinedButton: {
+  sugerenciaInput: {
     borderWidth: 1,
-    borderColor: colors.blue,
+    borderColor: colors.grey,
     borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    width: "45%",
-    alignItems: "center",
-  },
-  outlinedButtonText: {
-    color: colors.blue,
-    fontWeight: "600",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     fontSize: 16,
+    minHeight: 60,
+    textAlignVertical: "top",
   },
   acceptButton: {
     backgroundColor: colors.blue,
@@ -360,13 +326,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: 20,
   },
-  carPhoto: {   
-    width: 130,
-    height: 130,
-    borderRadius: 10,
-    marginBottom: 5,
-  },
-   row: {
+  row: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 5,
@@ -374,5 +334,11 @@ const styles = StyleSheet.create({
   dateText: {
     fontSize: 18,
     color: colors.black,
+  },
+  carPhoto: {
+    width: 130,
+    height: 130,
+    borderRadius: 10,
+    marginBottom: 5,
   },
 });
