@@ -105,7 +105,9 @@ const styles = StyleSheet.create({
   },
   tabBarStyle: {
     height: 80,           
-    padding: 20,        
+    padding: 20, 
+    borderTopWidth: 1,           // Agrega este
+    borderTopColor: colors.lightGrey100,       
   },
   tabBarLabel: {
     fontSize: 10,

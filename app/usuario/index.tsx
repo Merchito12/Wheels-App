@@ -34,6 +34,7 @@ export default function Index() {
   const { obtenerViajesPorEstado, obtenerViajesPorEstadoViajeYEstadoPunto } = useCliente();
 
   const { user } = useAuth();
+  const { userName } = useAuth();
   const [viajeEnCurso, setViajeEnCurso] = useState<any>(null);
 
 
@@ -167,6 +168,10 @@ export default function Index() {
 
   return (
     <View style={styles.container}>
+
+    <Text style={styles.greetingText}>
+            Hola, {userName ? userName.charAt(0).toUpperCase() + userName.slice(1) : ""}
+      </Text>
       <Searchbar
         placeholder="Buscar viaje..."
         value={searchQuery}
@@ -175,10 +180,7 @@ export default function Index() {
       />
 
       <View style={styles.buttonsContainer}>
-        <TouchableOpacity style={styles.sort}>
-          <SortIcon color={colors.grey} />{" "}
-          <Text style={styles.buttonText}>Sort</Text>
-        </TouchableOpacity>
+       
 
         <TouchableOpacity style={styles.filter}>
           <FilterIcon color={colors.grey} />{" "}
@@ -296,7 +298,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.white,
     paddingHorizontal: 30,
-    paddingTop: 40,
+    paddingTop: 80,
   },
   barraBusqueda: {
     marginBottom: 20,
@@ -438,5 +440,12 @@ const styles = StyleSheet.create({
   dateText: {
     fontSize: 14,
     color: colors.black,
+  },
+  greetingText: {
+    fontSize: 22,
+    fontWeight: "600",
+    color: colors.black,
+    marginBottom: 20,
+    marginTop: 30,
   },
 });
