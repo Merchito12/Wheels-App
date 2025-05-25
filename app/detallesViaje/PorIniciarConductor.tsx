@@ -188,7 +188,7 @@ const [fotosClientes, setFotosClientes] = useState<Record<string, string>>({});
 
       <ScrollView style={styles.container} contentContainerStyle={{ paddingTop: 90 }}>
         {/* Imagen del mapa del viaje */}
-<MapComponent viaje={{ ...viaje, direccion: viaje.direccion || '' }} puntosAceptados={aceptados.map(item => item.punto)} />
+        <MapComponent viaje={{ ...viaje, direccion: viaje.direccion || '' }} puntosAceptados={aceptados.map(item => item.punto)} />
 
         <View style={styles.infoContainer}>
 
@@ -207,7 +207,6 @@ const [fotosClientes, setFotosClientes] = useState<Record<string, string>>({});
             <Ionicons name="time-outline" size={20} color={colors.grey} />
             <Text style={styles.infoText}>Hora: {viaje.horaSalida || 'N/A'}</Text>
           </View>
-          
 
           <TouchableOpacity
             style={[
