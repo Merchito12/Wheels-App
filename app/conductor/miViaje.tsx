@@ -2,96 +2,158 @@ import React, { useState } from "react";
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   StyleSheet,
-  TextInput,
   ScrollView,
   Modal,
   Pressable,
+  Platform,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import * as Notifications from "expo-notifications";
 import { useAuth } from "@/context/authContext/AuthContext";
 import { useViajes } from "@/context/viajeContext/ViajeConductorContext";
 import colors from "@/styles/Colors";
 import { router } from "expo-router";
+import { scheduleAtDate } from "@/services/Notifications"; // tu helper
+
+// Mostrar notifs en primer plano
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
 
 export default function CrearViaje() {
-  
   const { crearViaje } = useViajes();
-
   const { user, car } = useAuth();
-  const seats = car?.seats ?? 1;  // valor por defecto 1
+  const seats = car?.seats ?? 1;
 
+  const [tripDate, setTripDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
-   const [fecha, setFecha] = useState("");  // ahora texto
-  const [hora, setHora] = useState("");    // ahora texto
   const [precio, setPrecio] = useState("15.00");
   const [origen, setOrigen] = useState("");
   const [destino, setDestino] = useState("Universidad de la Sabana");
-
   const [isDestinoEditable, setIsDestinoEditable] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
 
-  const handleBack = () => {
-    router.back();
-  };
+  const handleBack = () => router.back();
 
   const handleSwap = () => {
     setIsDestinoEditable(!isDestinoEditable);
-    const temp = origen;
-    setOrigen(destino);
-    setDestino(temp);
+    setDestino(prev => {
+      const temp = origen;
+      setOrigen(prev);
+      return temp;
+    });
   };
+
+  const onChangeDate = (_: any, selectedDate?: Date) => {
+    setShowDatePicker(Platform.OS === "ios");
+    if (selectedDate) {
+      const newDate = new Date(tripDate);
+      newDate.setFullYear(
+        selectedDate.getFullYear(),
+        selectedDate.getMonth(),
+        selectedDate.getDate()
+      );
+      setTripDate(newDate);
+    }
+  };
+
+  const onChangeTime = (_: any, selectedTime?: Date) => {
+    setShowTimePicker(Platform.OS === "ios");
+    if (selectedTime) {
+      const newDate = new Date(tripDate);
+      newDate.setHours(
+        selectedTime.getHours(),
+        selectedTime.getMinutes()
+      );
+      setTripDate(newDate);
+    }
+  };
+
+  const formatDate = (date: Date) =>
+    date.toLocaleDateString("es-ES", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+
+  const formatTime = (date: Date) =>
+    date.toLocaleTimeString("es-ES", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 
   const handleCreateViaje = async () => {
     if (!user) {
       console.error("Usuario no logueado");
       return;
     }
-    if (!fecha.trim() || !hora.trim()) {
-      alert("Por favor ingresa fecha y hora");
+    if (!origen.trim()) {
+      Alert.alert("Error", "Por favor ingresa el origen");
       return;
     }
-  
+
     const nuevoViaje = {
       conductor: user.displayName || "Conductor desconocido",
       haciaLaU: destino === "Universidad de la Sabana",
       direccion: origen,
-      fecha: fecha.trim(),
-      horaSalida: hora.trim(),
-      precio: precio,
+      fecha: formatDate(tripDate),
+      horaSalida: formatTime(tripDate),
+      precio,
       estado: "por iniciar" as const,
-      cuposDisponibles:seats , // Asignar un valor por defecto
+      cuposDisponibles: seats,
     };
-  
+
     try {
       const viajeId = await crearViaje(nuevoViaje);
       console.log("Viaje creado con id:", viajeId);
+
+      // calcular trigger 2 minutos antes
+      const triggerDate = new Date(tripDate.getTime() - 2 * 60 * 1000);
+
+      // programar notificación con el helper
+      await scheduleAtDate(
+        "Tu viaje está por iniciar",
+        `Origen: ${origen}. Sale en 2 minutos.`,
+        triggerDate
+      );
+
       setModalVisible(true);
-  
-      // Limpieza de campos
-      setFecha("");
-      setHora("");
+
+      // reset
       setOrigen("");
       setDestino("Universidad de la Sabana");
       setPrecio("15.00");
       setIsDestinoEditable(false);
+      setTripDate(new Date());
     } catch (error) {
-      console.error("Error creando viaje:", error);
-      alert("No se pudo crear el viaje, intenta nuevamente.");
+      console.error(error);
+      Alert.alert(
+        "Error",
+        "No se pudo crear el viaje ni programar la notificación."
+      );
     }
   };
-  
 
   return (
     <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
       <TouchableOpacity style={styles.backButton} onPress={handleBack}>
         <Ionicons name="arrow-back" size={24} color={colors.blue} />
       </TouchableOpacity>
-
       <Text style={styles.title}>Crea un nuevo viaje</Text>
 
-      {/* Origen y Destino */}
       <View style={styles.originDestContainer}>
         <View style={styles.inputWrapper}>
           <Text style={styles.label}>Origen</Text>
@@ -102,18 +164,15 @@ export default function CrearViaje() {
             value={origen}
             onChangeText={setOrigen}
             autoCapitalize="words"
-            returnKeyType="done"
           />
         </View>
-
-        <TouchableOpacity
-          style={styles.swapButton}
-          onPress={handleSwap}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="swap-vertical" size={28} color={colors.blue} />
+        <TouchableOpacity style={styles.swapButton} onPress={handleSwap}>
+          <Ionicons
+            name="swap-vertical"
+            size={28}
+            color={colors.blue}
+          />
         </TouchableOpacity>
-
         <View style={styles.inputWrapper}>
           <Text style={styles.label}>Destino</Text>
           <TextInput
@@ -123,76 +182,82 @@ export default function CrearViaje() {
             editable={isDestinoEditable}
             selectTextOnFocus={isDestinoEditable}
             autoCapitalize="words"
-            returnKeyType="done"
           />
         </View>
       </View>
 
-      {/* Fecha */}
       <View style={styles.inputGroup}>
-        <Text style={styles.label}>Fecha</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Ejemplo: 2025-05-23"
-          placeholderTextColor={colors.grey}
-          value={fecha}
-          onChangeText={setFecha}
-          keyboardType="default"
-          returnKeyType="done"
-        />
+        <Text style={styles.label}>Fecha de salida</Text>
+        <TouchableOpacity
+          style={styles.pickerButton}
+          onPress={() => setShowDatePicker(true)}
+        >
+          <Text style={styles.pickerText}>
+            {formatDate(tripDate)}
+          </Text>
+        </TouchableOpacity>
+        {showDatePicker && (
+          <DateTimePicker
+            value={tripDate}
+            mode="date"
+            display="default"
+            onChange={onChangeDate}
+          />
+        )}
       </View>
 
-      {/* Hora */}
       <View style={styles.inputGroup}>
-        <Text style={styles.label}>Hora del viaje</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Ejemplo: 15:30"
-          placeholderTextColor={colors.grey}
-          value={hora}
-          onChangeText={setHora}
-          keyboardType="default"
-          returnKeyType="done"
-        />
+        <Text style={styles.label}>Hora de salida</Text>
+        <TouchableOpacity
+          style={styles.pickerButton}
+          onPress={() => setShowTimePicker(true)}
+        >
+          <Text style={styles.pickerText}>
+            {formatTime(tripDate)}
+          </Text>
+        </TouchableOpacity>
+        {showTimePicker && (
+          <DateTimePicker
+            value={tripDate}
+            mode="time"
+            display="default"
+            onChange={onChangeTime}
+          />
+        )}
       </View>
 
-      {/* Precio */}
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Precio</Text>
         <View style={styles.priceButtonsContainer}>
-          {["15.00", "15.30", "15.10", "15.05"].map((price) => (
+          {["15.00", "15.30", "15.10", "15.05"].map((p) => (
             <TouchableOpacity
-              key={price}
+              key={p}
               style={[
                 styles.priceButton,
-                precio === price && styles.priceButtonSelected,
+                precio === p && styles.priceButtonSelected,
               ]}
-              onPress={() => setPrecio(price)}
-              activeOpacity={0.7}
+              onPress={() => setPrecio(p)}
             >
               <Text
                 style={[
                   styles.priceText,
-                  precio === price && styles.priceTextSelected,
+                  precio === p && styles.priceTextSelected,
                 ]}
               >
-                € {price}
+                € {p}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
       </View>
 
-      {/* Botón Crear viaje */}
       <TouchableOpacity
         style={styles.createButton}
         onPress={handleCreateViaje}
-        activeOpacity={0.8}
       >
         <Text style={styles.createButtonText}>Crear Viaje</Text>
       </TouchableOpacity>
 
-      {/* Modal Confirmación */}
       <Modal
         transparent
         visible={modalVisible}
@@ -212,7 +277,9 @@ export default function CrearViaje() {
                 router.push("../");
               }}
             >
-              <Text style={styles.modalButtonText}>Ir a Inicio</Text>
+              <Text style={styles.modalButtonText}>
+                Ir a Inicio
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -222,15 +289,8 @@ export default function CrearViaje() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: colors.white,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-  },
-  backButton: {
-    marginBottom: 15,
-    width: 40,
-  },
+  container: { backgroundColor: colors.white, padding: 20 },
+  backButton: { marginBottom: 15, width: 40 },
   title: {
     fontSize: 28,
     fontWeight: "bold",
@@ -240,12 +300,9 @@ const styles = StyleSheet.create({
   originDestContainer: {
     flexDirection: "row",
     alignItems: "flex-end",
-    justifyContent: "space-between",
     marginBottom: 25,
   },
-  inputWrapper: {
-    flex: 1,
-  },
+  inputWrapper: { flex: 1 },
   label: {
     fontSize: 16,
     color: colors.black,
@@ -256,10 +313,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.grey,
     borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+    padding: 12,
     fontSize: 16,
-    color: colors.black,
     backgroundColor: colors.white,
   },
   inputEditable: {
@@ -272,6 +327,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginHorizontal: 10,
   },
+  inputGroup: { marginBottom: 20 },
+  pickerButton: {
+    borderWidth: 1,
+    borderColor: colors.grey,
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: colors.white,
+  },
+  pickerText: { fontSize: 16, color: colors.black },
   priceButtonsContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -282,8 +346,6 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     paddingVertical: 10,
     paddingHorizontal: 20,
-    backgroundColor: colors.white,
-    marginHorizontal: 3,
   },
   priceButtonSelected: {
     backgroundColor: colors.blue,
@@ -292,7 +354,6 @@ const styles = StyleSheet.create({
   priceText: {
     color: colors.black,
     fontSize: 16,
-    fontWeight: "500",
   },
   priceTextSelected: {
     color: colors.white,
@@ -301,9 +362,9 @@ const styles = StyleSheet.create({
   createButton: {
     backgroundColor: colors.blue,
     borderRadius: 12,
-    paddingVertical: 16,
-    marginTop: 30,
+    padding: 16,
     alignItems: "center",
+    marginTop: 10,
   },
   createButtonText: {
     color: colors.white,
@@ -315,7 +376,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 30,
+    padding: 30,
   },
   modalContainer: {
     backgroundColor: colors.white,
@@ -338,26 +399,17 @@ const styles = StyleSheet.create({
     marginBottom: 25,
   },
   modalButton: {
-    backgroundColor: colors.blue,
     borderRadius: 8,
     paddingVertical: 12,
     paddingHorizontal: 30,
+  },
+  confirmButton: {
+    backgroundColor: colors.blue,
+    marginTop: 20,
   },
   modalButtonText: {
     color: colors.white,
     fontSize: 16,
     fontWeight: "600",
   },
-  confirmButton: {
-    backgroundColor: colors.blue,
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 30,
-    marginTop: 20,
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
-
-
 });

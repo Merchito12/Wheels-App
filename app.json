@@ -9,7 +9,10 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+       "infoPlist": {
+        "NSUserNotificationUsageDescription": "La app usa notificaciones para avisarte 2 minutos antes de tu viaje."
+      }
     },
     "android": {
       "adaptiveIcon": {
