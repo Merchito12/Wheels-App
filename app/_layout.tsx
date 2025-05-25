@@ -7,6 +7,8 @@ import { ViajeProvider } from "@/context/viajeContext/ViajeConductorContext";
 import { ViajeSeleccionadoProvider } from "@/context/viajeContext/ViajeSeleccionadoContext";
 import { Stack } from "expo-router";
 
+
+
 export default function RootLayout() {
   // Pedir permiso nada más iniciar la app
   useEffect(() => {
