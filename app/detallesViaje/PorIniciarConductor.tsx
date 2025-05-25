@@ -18,6 +18,7 @@ import { useViajeSeleccionado } from '@/context/viajeContext/ViajeSeleccionadoCo
 
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../utils/FirebaseConfig";  // Ajusta la ruta según tu proyecto
+import MapComponent from '@/components/shared/Map';
 
 
 export default function ViajeDetalleScreen() {
@@ -186,11 +187,8 @@ const [fotosClientes, setFotosClientes] = useState<Record<string, string>>({});
       </View>
 
       <ScrollView style={styles.container} contentContainerStyle={{ paddingTop: 90 }}>
-        <Image
-          source={require('@/assets/images/map.png')}
-          style={styles.mapImage}
-          resizeMode="cover"
-        />
+        {/* Imagen del mapa del viaje */}
+        <MapComponent viaje={{ ...viaje, direccion: viaje.direccion || '' }} puntosAceptados={aceptados.map(item => item.punto)} />
 
         <View style={styles.infoContainer}>
 
@@ -392,6 +390,7 @@ const styles = StyleSheet.create({
   },
   infoContainer: {
     padding: 20,
+    paddingBottom: 100, // Espacio para el botón de iniciar viaje
   },
   infoRow: {
     flexDirection: 'row',

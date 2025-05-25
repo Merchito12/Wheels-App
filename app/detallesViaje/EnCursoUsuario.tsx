@@ -15,6 +15,7 @@ import { useCliente, Viaje } from '../../context/viajeContext/viajeClienteContex
 import { useAuth } from '../../context/authContext/AuthContext';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../utils/FirebaseConfig';
+import MapComponent from '@/components/shared/Map';
 
 export default function ViajeDetalleScreen() {
   const { user } = useAuth();
@@ -26,6 +27,10 @@ export default function ViajeDetalleScreen() {
   const [modalQRVisible, setModalQRVisible] = useState(false);
   const [fotosClientes, setFotosClientes] = useState<Record<string, string>>({});
   const [fotoCarroConductor, setFotoCarroConductor] = useState<string | null>(null);
+  const [nombreConductor, setNombreConductor] = useState<string | null>(null);
+  const [fotoPerfilConductor, setFotoPerfilConductor] = useState<string | null>(null);
+
+
 
   // Obtener foto perfil cliente por idCliente (pasajeros)
   const obtenerFotoCliente = async (idCliente: string): Promise<string | null> => {
@@ -41,6 +46,68 @@ export default function ViajeDetalleScreen() {
     return null;
   };
 
+  const obtenerNombreConductor = async (uid: string): Promise<string | null> => {
+    try {
+      const userDoc = await getDoc(doc(db, 'users', uid));
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        return data.name || null;
+      }
+    } catch (error) {
+      console.error(`Error obteniendo nombre del conductor ${uid}:`, error);
+    }
+    return null;
+  };
+
+
+const obtenerFotoPerfilConductor = async (uid: string): Promise<string | null> => {
+  try {
+    const userDoc = await getDoc(doc(db, 'users', uid));
+    if (userDoc.exists()) {
+      const data = userDoc.data();
+      return data.profilePhotoURL || null;
+    }
+  } catch (error) {
+    console.error(`Error obteniendo foto de perfil del conductor ${uid}:`, error);
+  }
+  return null;
+};
+
+useEffect(() => {
+  async function cargarDatosConductor() {
+    if (!viajeEnCurso || !viajeEnCurso.idConductor) {
+      setNombreConductor(null);
+      setFotoCarroConductor(null);
+      setFotoPerfilConductor(null);
+      return;
+    }
+    const [nombre, fotoCarro, fotoPerfil] = await Promise.all([
+      obtenerNombreConductor(viajeEnCurso.idConductor),
+      obtenerFotoCarroConductor(viajeEnCurso.idConductor),
+      obtenerFotoPerfilConductor(viajeEnCurso.idConductor),
+    ]);
+    setNombreConductor(nombre);
+    setFotoCarroConductor(fotoCarro);
+    setFotoPerfilConductor(fotoPerfil);
+  }
+  cargarDatosConductor();
+}, [viajeEnCurso]);
+
+  
+  // useEffect para cargar el nombre del conductor
+  useEffect(() => {
+    async function cargarNombreConductor() {
+      if (!viajeEnCurso || !viajeEnCurso.idConductor) {
+        setNombreConductor(null);
+        return;
+      }
+      const nombre = await obtenerNombreConductor(viajeEnCurso.idConductor);
+      setNombreConductor(nombre);
+    }
+    cargarNombreConductor();
+  }, [viajeEnCurso]);
+  
+
   // Obtener foto carro conductor por uid
   const obtenerFotoCarroConductor = async (uid: string): Promise<string | null> => {
     try {
@@ -54,6 +121,8 @@ export default function ViajeDetalleScreen() {
     }
     return null;
   };
+
+  
 
   useEffect(() => {
     async function cargarViajeEnCurso() {
@@ -145,14 +214,31 @@ export default function ViajeDetalleScreen() {
 
       <ScrollView style={styles.container} contentContainerStyle={{ paddingTop: 90 }}>
         {/* FOTO ESTÁTICA DEL MAPA */}
-        <Image
-          source={require('@/assets/images/map.png')}
-          style={styles.mapImage}
-          resizeMode="cover"
-        />
+        <MapComponent
+        viaje={{ ...viajeEnCurso, direccion: viajeEnCurso.direccion || '' }}
+        puntosAceptados={puntosAceptados}
+      />       
 
         {/* INFORMACIÓN DEL VIAJE */}
         <View style={styles.infoContainer}>
+        <View style={styles.conductorContainer}>
+        {fotoPerfilConductor && (
+          <Image
+            source={{ uri: fotoPerfilConductor }}
+            style={styles.conductorPerfilImage}
+            resizeMode="cover"
+          />
+        )}
+        {fotoCarroConductor && (
+          <Image
+            source={{ uri: fotoCarroConductor }}
+            style={styles.conductorCarroImage}
+            resizeMode="cover"
+          />
+        )}
+        <Text style={styles.conductorNombre}>{nombreConductor || 'Conductor'}</Text>
+      </View>
+
           <View style={styles.infoRow}>
             <Ionicons name="cash-outline" size={20} color={colors.grey} />
             <Text style={styles.infoText}>
@@ -168,18 +254,7 @@ export default function ViajeDetalleScreen() {
             <Text style={styles.infoText}>Hora: {viajeEnCurso.horaSalida || 'N/A'}</Text>
           </View>
 
-          {/* FOTO DEL CARRO DEL CONDUCTOR */}
-          {/* <View style={styles.carImageContainer}>
-            {/* {fotoCarroConductor ? (
-              <Image
-                source={{ uri: fotoCarroConductor }}
-                style={styles.carImage}
-                resizeMode="cover"
-              />
-            ) : (
-              <Ionicons name="car" size={60} color={colors.blue} />
-            )} */}
-          {/* </View>  */}
+         
         </View>
 
         {/* TU PUNTO */}
@@ -214,8 +289,7 @@ export default function ViajeDetalleScreen() {
         )}
 
         {/* OTROS PUNTOS */}
-        <View style={styles.listConatainer}>
-        <Text style={styles.subtitulo}>Otros Puntos Aceptados</Text>
+        <View style={{ paddingBottom: 100, paddingHorizontal: 20 }}>        <Text style={styles.subtitulo}>Otros Puntos Aceptados</Text>
         {otrosPuntos.length === 0 ? (
           <Text style={{ color: colors.grey, fontStyle: 'italic' }}>
             No hay otros puntos aceptados.
@@ -307,6 +381,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.white,
+
   },
   mapImage: {
     width: '100%',
@@ -408,8 +483,52 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
   },
+  mapContainer: {
+    width: '100%',
+    height: 300,
+    marginBottom: 20,
+  },
   listConatainer: {
     paddingHorizontal: 20,
   },
+  conductorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 15,
+    marginBottom: 10,
+  },
+
+  conductorPerfilImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 12,
+    borderWidth: 1,
+  },
+  conductorCarroImage: {
+    width: 70,
+    height: 45,
+    borderRadius: 8,
+    marginRight: 12,
+    marginLeft: -32,
+    marginTop: 5,
+    marginBottom: 5,
+    zIndex: 1,
+  },
+  conductorNombre: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.black,
+  },
+  
+  conductorImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 12,
+  },
+
+  
+
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 });

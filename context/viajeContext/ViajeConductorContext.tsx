@@ -13,6 +13,7 @@ import {
 import { db } from "../../utils/FirebaseConfig";
 import { useAuth } from "../authContext/AuthContext";
 
+
 type EstadoViaje = "por iniciar" | "en curso" | "finalizado";
 type EstadoPunto = "pendiente" | "aceptado" | "negado";
 

@@ -51,6 +51,40 @@ export default function Index() {
         const viajeFiltrado = viajesEnCurso.find((viaje) =>
           viaje.puntos.some((punto: any) => punto.idCliente === user.uid)
         );
+        
+  
+        setViajeEnCurso(viajeFiltrado || null);
+      } catch (error) {
+        console.error("Error cargando viaje en curso:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    cargarViajeEnCurso();
+  }, [user]);
+
+
+  
+  useEffect(() => {
+    async function cargarViajeEnCurso() {
+      if (!user) return;
+      setLoading(true);
+      try {
+        const viajesEnCurso = await obtenerViajesPorEstadoViajeYEstadoPunto("en curso", "aceptado");
+  
+        // Filtra viaje con punto solicitado por el usuario y aceptado
+        const viajeFiltrado = viajesEnCurso.find(viaje =>
+          viaje.puntos.some(punto => punto.idCliente === user.uid && punto.estado === "aceptado")
+        );
+  
+        if (viajeFiltrado && viajeFiltrado.idConductor) {
+          const docRef = doc(db, "users", viajeFiltrado.idConductor);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            const conductorData = docSnap.data();
+            viajeFiltrado.conductorCarPhoto = conductorData.car?.photoURL || null;
+          }
+        }
   
         setViajeEnCurso(viajeFiltrado || null);
       } catch (error) {
@@ -62,7 +96,6 @@ export default function Index() {
     cargarViajeEnCurso();
   }, [user]);
   
-
   useEffect(() => {
     async function cargarViajes() {
       setLoading(true);
@@ -154,28 +187,28 @@ export default function Index() {
       </View>
 
       {viajeEnCurso ? (
-  <View style={styles.headerContainer}>
-    <View style={styles.textContainer}>
-      <Text style={styles.headerTitle}>Viaje en Curso</Text>
-      <Text style={styles.headerSubtitle}>
-        {`${viajeEnCurso.fecha}, ${viajeEnCurso.horaSalida}, ${viajeEnCurso.direccion}`}
-      </Text>
-      <TouchableOpacity
-        style={styles.detailsButton}
-        onPress={() => router.push('../detallesViaje/EnCursoUsuario')}
-      >
-        <Text style={styles.detailsButtonText}>Ver detalles</Text>
-      </TouchableOpacity>
-    </View>
-    <Image
-      source={
-        viajeEnCurso.conductorCarPhoto
-          ? { uri: viajeEnCurso.conductorCarPhoto }
-          : require("../../assets/images/carImage.png")
-      }
-      style={styles.carImage}
-    />
-  </View>
+      <View style={styles.headerContainer}>
+        <View style={styles.textContainer}>
+          <Text style={styles.headerTitle}>{viajeEnCurso.direccion}</Text>
+          <Text style={styles.headerSubtitle}>
+            {` ${viajeEnCurso.horaSalida} hr`}
+          </Text>
+          <TouchableOpacity
+            style={styles.detailsButton}
+            onPress={() => router.push('../detallesViaje/EnCursoUsuario')}
+          >
+            <Text style={styles.detailsButtonText}>Ver detalles</Text>
+          </TouchableOpacity>
+        </View>
+        <Image
+          source={
+            viajeEnCurso.conductorCarPhoto
+              ? { uri: viajeEnCurso.conductorCarPhoto }
+              : require("../../assets/images/carImage.png")
+          }
+          style={styles.carImage}
+        />
+      </View>
 ) : null}
 
 
@@ -299,9 +332,9 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   carImage: {
-    width: 100,
-    height: 100,
-    resizeMode: "contain",
+    width: 130,
+    height: 130,
+    resizeMode: "cover",
     borderRadius: 10,
   },
   detailsButton: {

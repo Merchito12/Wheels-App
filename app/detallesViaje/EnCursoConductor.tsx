@@ -16,7 +16,8 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/utils/FirebaseConfig'; // Asegúrate de que la ruta sea correcta
+import { db } from '@/utils/FirebaseConfig';
+import MapComponent from '../../components/shared/Map';
 
 export default function ViajeDetalleScreen() {
   const {
@@ -30,10 +31,7 @@ export default function ViajeDetalleScreen() {
   );
 
   const [nombresClientes, setNombresClientes] = useState<Record<string, string>>({});
-
-  // Guardamos solo los puntos en viaje para el viaje actual
-  const [enViaje, setEnViaje] = useState<Punto[]>([]);
-
+  const [fotosClientes, setFotosClientes] = useState<Record<string, string>>({});
   const [aceptados, setAceptados] = useState<
     { viajeId: string; viajeDireccion: string; punto: Punto }[]
   >([]);
@@ -43,21 +41,13 @@ export default function ViajeDetalleScreen() {
 
   const router = useRouter();
 
+  // Estados para manejo de escaneo QR
   const [modalVisible, setModalVisible] = useState(false);
   const [scanned, setScanned] = useState(false);
-  const [puntoActual, setPuntoActual] = useState<
-    { idCliente: string; direccion: string } | null
-  >(null);
+  const [puntoActual, setPuntoActual] = useState<{ idCliente: string; direccion: string } | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
-
   const [modalVerificadoVisible, setModalVerificadoVisible] = useState(false);
   const [modalConfirmarVisible, setModalConfirmarVisible] = useState(false);
-
-  const STORAGE_KEY = 'enViajePorViaje';
-
-  // Estado para guardar fotos de usuarios por idCliente
-  const [fotosClientes, setFotosClientes] = useState<Record<string, string>>({});
-
 
   const obtenerNombreCliente = async (idCliente: string): Promise<string | null> => {
     try {
@@ -71,18 +61,13 @@ export default function ViajeDetalleScreen() {
     }
     return null;
   };
-  
 
-  // Función para obtener foto perfil del cliente por idCliente desde Firestore
   const obtenerFotoCliente = async (idCliente: string): Promise<string | null> => {
     try {
       const userDoc = await getDoc(doc(db, 'users', idCliente));
       if (userDoc.exists()) {
         const data = userDoc.data();
-        console.log(`Foto de cliente ${idCliente}:`, data.profilePhotoURL);
         return data.profilePhotoURL || null;
-      } else {
-        console.warn(`Usuario ${idCliente} no existe en Firestore`);
       }
     } catch (error) {
       console.error(`Error obteniendo foto de cliente ${idCliente}:`, error);
@@ -110,12 +95,10 @@ export default function ViajeDetalleScreen() {
     cargarNombresClientes();
   }, [viajeEnCurso]);
 
-  // Cargar fotos de clientes para los puntos del viaje actual
   useEffect(() => {
     async function cargarFotosClientes() {
       if (!viajeEnCurso) return;
       const nuevasFotos: Record<string, string> = {};
-      // Filtrar clientes únicos que aún no tienen foto cargada
       const clientesSinFoto = Array.from(new Set(viajeEnCurso.puntos.map(p => p.idCliente)))
         .filter(id => !fotosClientes[id]);
 
@@ -131,8 +114,6 @@ export default function ViajeDetalleScreen() {
     cargarFotosClientes();
   }, [viajeEnCurso]);
 
-
-  // Cargar puntos aceptados y pendientes para el viaje en curso
   useEffect(() => {
     async function cargarPuntos() {
       if (!viajeEnCurso) return;
@@ -145,41 +126,6 @@ export default function ViajeDetalleScreen() {
     }
     cargarPuntos();
   }, [viajeEnCurso]);
-
-  // Cargar puntos en viaje solo del viaje actual desde AsyncStorage
-  useEffect(() => {
-    (async () => {
-      try {
-        const savedDataStr = await AsyncStorage.getItem(STORAGE_KEY);
-        const savedData = savedDataStr ? JSON.parse(savedDataStr) : {};
-        if (viajeEnCurso && savedData[viajeEnCurso.id]) {
-          setEnViaje(savedData[viajeEnCurso.id]);
-        } else {
-          setEnViaje([]);
-        }
-      } catch (e) {
-        console.error('Error cargando pasajeros en viaje desde AsyncStorage:', e);
-      }
-    })();
-  }, [viajeEnCurso]);
-
-  // Guardar puntos en viaje solo para el viaje actual en AsyncStorage
-  useEffect(() => {
-    (async () => {
-      try {
-        if (!viajeEnCurso) return;
-
-        const savedDataStr = await AsyncStorage.getItem(STORAGE_KEY);
-        const savedData = savedDataStr ? JSON.parse(savedDataStr) : {};
-
-        savedData[viajeEnCurso.id] = enViaje;
-
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(savedData));
-      } catch (e) {
-        console.error('Error guardando pasajeros en viaje en AsyncStorage:', e);
-      }
-    })();
-  }, [enViaje, viajeEnCurso]);
 
   const handleScanQR = (punto: { idCliente: string; direccion: string }) => {
     setPuntoActual(punto);
@@ -201,11 +147,7 @@ export default function ViajeDetalleScreen() {
       prev.filter((p) => p.punto.idCliente !== puntoActual.idCliente)
     );
 
-    // Agregar punto al estado local de enViaje para el viaje actual
-    setEnViaje((prev) => [
-      ...prev,
-      { ...puntoActual, estado: 'en viaje' } as Punto,
-    ]);
+    // Nota: Ya no hay estado enViaje para agregar
   };
 
   const finalizarViaje = async () => {
@@ -237,105 +179,135 @@ export default function ViajeDetalleScreen() {
     );
   }
 
-  // Filtrar aceptados para no mostrar los ya en viaje
-  const aceptadosFiltrados = aceptados.filter(({ punto }) =>
-    !enViaje.some((p) => p.idCliente === punto.idCliente)
-  );
-
   return (
     <>
       {/* HEADER FIJO ARRIBA */}
       <View style={styles.header}>
-      <TouchableOpacity onPress={() => router.replace('/conductor')} style={styles.backButton}>
-        <Ionicons name="arrow-back" size={28} color={colors.blue} />
-      </TouchableOpacity>
-      <View style={styles.headerTextContainer}>
-        <Text style={styles.headerTitle}>
-          {viajeEnCurso.haciaLaU ? 'Desde La Universidad' : 'Desde ' + viajeEnCurso.direccion}
-        </Text>
-        <Text style={styles.headerSubtitle}>
-          Estado: <Text style={{ fontWeight: 'bold' }}>{viajeEnCurso.estado}</Text>
-        </Text>
-      </View>
-    </View>
-
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingTop: 90, paddingBottom: 40 }}>
-      <Image
-        source={require('@/assets/images/map.png')}
-        style={styles.mapImage}
-        resizeMode="cover"
-      />
-
-      <View style={styles.infoContainer}>
-        {aceptadosFiltrados.length > 0 && (
-          <>
-            <Text style={styles.subtitulo}>Por Recoger</Text>
-            {aceptadosFiltrados.map(({ punto }, index) => (
-              <View key={`a-${index}`} style={[styles.puntoRow, styles.cardPunto]}>
-                {fotosClientes[punto.idCliente] ? (
-                  <Image
-                    source={{ uri: fotosClientes[punto.idCliente] }}
-                    style={styles.userImage}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <Ionicons
-                    name="person-circle"
-                    size={36}
-                    color={colors.lightGreyrows}
-                  />
-                )}
-                <View style={styles.puntoInfo}>
-                  <Text style={styles.puntoNombre}>{punto.direccion}</Text>
-                  <Text style={styles.puntoDireccion}>
-                    {nombresClientes[punto.idCliente] || punto.idCliente}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => handleScanQR(punto)}
-                  style={styles.scanContainer}
-                >
-                  <Ionicons name="qr-code-outline" size={20} color={colors.blue} />
-                  <Text style={styles.qr}>Escanear QR</Text>
-                </TouchableOpacity>
-              </View>
-            ))}
-          </>
-        )}
-
-        {enViaje.length > 0 && (
-          <>
-            <Text style={styles.subtitulo}>En Viaje</Text>
-            {enViaje.map((punto, index) => (
-              <View key={`e-${index}`} style={[styles.puntoRow, styles.cardPunto]}>
-                <Ionicons name="car" size={36} color={colors.blue} />
-                <View style={styles.puntoInfo}>
-                  <Text style={styles.puntoNombre}>{punto.idCliente}</Text>
-                  <Text style={styles.puntoDireccion}>{punto.direccion}</Text>
-                </View>
-              </View>
-            ))}
-          </>
-        )}
-
-        {aceptadosFiltrados.length === 0 && enViaje.length === 0 && (
-          <Text style={{ color: colors.grey, fontStyle: 'italic' }}>
-            No hay pasajeros por recoger ni en viaje.
+        <TouchableOpacity onPress={() => router.replace('/conductor')} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={28} color={colors.blue} />
+        </TouchableOpacity>
+        <View style={styles.headerTextContainer}>
+          <Text style={styles.headerTitle}>
+            {viajeEnCurso.haciaLaU ? 'Desde La Universidad' : 'Desde ' + viajeEnCurso.direccion}
           </Text>
-        )}
+          <Text style={styles.headerSubtitle}>
+            Estado: <Text style={{ fontWeight: 'bold' }}>{viajeEnCurso.estado}</Text>
+          </Text>
+        </View>
       </View>
 
-      {/* Botón Finalizar centrado */}
-      <View style={{ alignItems: 'center', marginTop: 30, marginBottom: 20 }}>
+      <ScrollView style={styles.container} contentContainerStyle={{ paddingTop: 90, paddingBottom: 40 }}>
+        <MapComponent
+          viaje={{ ...viajeEnCurso, direccion: viajeEnCurso.direccion || '' }}
+          puntosAceptados={aceptados.map(({ punto }) => punto)}
+        />
+
+        <View style={styles.infoContainer}>
+          {aceptados.length > 0 ? (
+            <>
+              <Text style={styles.subtitulo}>Por Recoger</Text>
+              {aceptados.map(({ punto }, index) => (
+                <View key={`a-${index}`} style={[styles.puntoRow, styles.cardPunto]}>
+                  {fotosClientes[punto.idCliente] ? (
+                    <Image
+                      source={{ uri: fotosClientes[punto.idCliente] }}
+                      style={styles.userImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <Ionicons
+                      name="person-circle"
+                      size={36}
+                      color={colors.lightGreyrows}
+                    />
+                  )}
+                  <View style={styles.puntoInfo}>
+                    <Text style={styles.puntoNombre}>{punto.direccion}</Text>
+                    <Text style={styles.puntoDireccion}>
+                      {nombresClientes[punto.idCliente] || punto.idCliente}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => handleScanQR(punto)}
+                    style={styles.scanContainer}
+                  >
+                    <Ionicons name="qr-code-outline" size={20} color={colors.blue} />
+                    <Text style={styles.qr}>Escanear QR</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </>
+          ) : (
+            <Text style={{ color: colors.grey, fontStyle: 'italic' }}>
+              No hay pasajeros por recoger.
+            </Text>
+          )}
+        </View>
+
         <TouchableOpacity
           style={styles.finalizarButton}
           onPress={() => setModalConfirmarVisible(true)}
         >
           <Text style={styles.finalizarButtonText}>Finalizar Viaje</Text>
         </TouchableOpacity>
-      </View>
 
-    </ScrollView>
+        <Modal visible={modalVisible} animationType="slide">
+          <View style={styles.container}>
+            <CameraView
+              style={styles.camera}
+              facing="back"
+              barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+              onBarcodeScanned={handleQrScanned}
+            />
+            {scanned && (
+              <View style={{ position: 'absolute', bottom: 80 }}>
+                <Button title="Escanear de nuevo" onPress={() => setScanned(false)} />
+              </View>
+            )}
+            <View style={{ position: 'absolute', top: 50, right: 20 }}>
+              <TouchableOpacity onPress={() => setModalVisible(false)}>
+                <Ionicons name="close-circle" size={32} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        <Modal visible={modalVerificadoVisible} transparent animationType="fade" onRequestClose={() => setModalVerificadoVisible(false)}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <Text style={styles.modalTitle}>QR escaneado correctamente</Text>
+              <Button title="Cerrar" 
+
+               onPress={() => setModalVerificadoVisible(false)} />
+            </View>
+          </View>
+        </Modal>
+
+        <Modal visible={modalConfirmarVisible} transparent animationType="fade" onRequestClose={() => setModalConfirmarVisible(false)}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <Text style={styles.modalTitle}>Confirmar Finalización</Text>
+              <Text style={styles.modalMessage}>
+                ¿Seguro que quieres finalizar este viaje?
+              </Text>
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.cancelButton]}
+                  onPress={() => setModalConfirmarVisible(false)}
+                >
+                  <Text style={styles.modalButtonTextCancel}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.confirmButton]}
+                  onPress={finalizarViaje}
+                >
+                  <Text style={styles.modalButtonText}>Finalizar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      </ScrollView>
     </>
   );
 }
@@ -423,10 +395,10 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 14,
     alignItems: 'center',
+    alignSelf: 'center',
     borderWidth: 1,
     borderColor: colors.blue,
     width: '90%',
-
   },
   finalizarButtonText: {
     color: colors.blue,
@@ -439,12 +411,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)', // Transparente para modal
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalContainer: {
     width: '80%',
@@ -480,36 +451,33 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     borderWidth: 1,
     borderColor: colors.blue,
+    borderRadius: 10,
   },
   confirmButton: {
     backgroundColor: colors.blue,
+    borderRadius: 10,
+
   },
   modalButtonText: {
     color: colors.white,
     fontSize: 16,
     fontWeight: '600',
   },
-  modalButtonTextCancel: {
+
+  modalButtonTextCancel:
+  {
     color: colors.blue,
     fontSize: 16,
     fontWeight: '600',
-  },
-  modalContent: {
-    backgroundColor: colors.white,
-    padding: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  modalText: {
-    fontSize: 18,
-    color: colors.black,
-    marginBottom: 20,
   },
   userImage: {
     width: 36,
     height: 36,
     borderRadius: 18,
   },
+
+  
+
   cardPunto: {
     backgroundColor: colors.white,
     borderRadius: 12,
@@ -517,13 +485,10 @@ const styles = StyleSheet.create({
     marginVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    // sombra para iOS
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    // sombra para Android
     elevation: 3,
   },
-  
 });

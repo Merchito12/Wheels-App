@@ -689,7 +689,7 @@ const styles = StyleSheet.create({
   eyeIcon: {
     position: "absolute",
     right: 16,
-    top: 165,
+    bottom: 98,
   },
   loaderContainer: {
     flex: 1,
