@@ -332,11 +332,11 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   carImage: {
-    width: 130,
-    height: 130,
-    resizeMode: "cover",
-    borderRadius: 10,
+     width: 150,
+    height: 150,
+    resizeMode: "contain",
   },
+   
   detailsButton: {
     backgroundColor: colors.white,
     paddingVertical: 8,
