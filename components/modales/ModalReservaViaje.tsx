@@ -14,6 +14,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import colors from "../../styles/Colors";
 import { useCliente } from "../../context/viajeContext/viajeClienteContext"; // Ajusta ruta si es necesario
+import AutocompleteLugar from "../shared/Autocomplete";
 
 interface ModalReservaViajeProps {
   visible: boolean;
@@ -141,16 +142,12 @@ export default function ModalReservaViaje({
 
                 {/* Input para sugerencia */}
                 <View style={styles.sugerenciaContainer}>
-                  <TextInput
-                    placeholder="Escribe tu sugerencia de punto aquí..."
-                    style={styles.sugerenciaInput}
-                    value={sugerencia}
-                    onChangeText={setSugerencia}
-                    editable={!enviando}
-                    multiline
-                    numberOfLines={3}
-                  />
-                </View>
+                <AutocompleteLugar
+                  value={sugerencia}
+                  onSelect={(direccion: string) => setSugerencia(direccion)}
+                />
+              </View>
+
 
                 <View style={styles.meetingPointSection}>
                   <Text style={styles.meetingPointText}>
