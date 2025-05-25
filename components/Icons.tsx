@@ -38,3 +38,6 @@ export const LogOutIcon: React.FC<IconProps> = (props) => (
 export const StarIcon: React.FC<IconProps> = (props) => (
 <FontAwesome name="star" size={24} color="black" {...props}/>
 );
+export const CameraIcon: React.FC<IconProps> = (props) => (
+  <FontAwesome5 name="camera" size={24} color="black" {...props} />
+);

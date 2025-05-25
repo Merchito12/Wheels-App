@@ -15,6 +15,10 @@ export default function Ajustes() {
   const navigateToEdit = () => {
     router.push('./perfil/editarPerfil');
   };
+   
+  const navigateToAuto = () => {
+    router.push('./perfil/editarAuto');
+  };
 
   const navigateTosoporte = () => {
     router.push('./perfil/soporte');
@@ -59,6 +63,10 @@ export default function Ajustes() {
 
       <TouchableOpacity style={styles.option} onPress={navigateToEdit}>
         <Text style={styles.optionText}>Editar perfil</Text>
+        <ArrowRight color={colors.lightGreyrows} />
+      </TouchableOpacity>
+       <TouchableOpacity style={styles.option} onPress={navigateToAuto}>
+        <Text style={styles.optionText}>Autos</Text>
         <ArrowRight color={colors.lightGreyrows} />
       </TouchableOpacity>
 
