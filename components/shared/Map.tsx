@@ -10,6 +10,7 @@ const UNIVERSIDAD_COORDS = {
 interface MapComponentProps {
     viaje: Viaje | null;
     puntosAceptados?: Punto[];
+    
   }
   
 

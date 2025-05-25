@@ -2,6 +2,7 @@
 import React, { createContext, useState, useContext, ReactNode } from 'react';
 
 interface Viaje {
+  fecha: string;
   // Define aquí las propiedades mínimas que usarás
   id: string;
   direccion?: string;

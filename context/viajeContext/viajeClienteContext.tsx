@@ -22,6 +22,7 @@ export interface Punto {
 }
 
 export interface Viaje {
+  conductorCarPhoto: any;
   id: string;
   idConductor: string;
   conductor: string;

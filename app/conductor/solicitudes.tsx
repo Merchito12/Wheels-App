@@ -10,6 +10,7 @@ import {
 import { useAuth } from "@/context/authContext/AuthContext";
 import { useViajes } from "../../context/viajeContext/ViajeConductorContext";
 import colors from "@/styles/Colors";
+import { Ionicons } from "@expo/vector-icons";
 
 interface Punto {
   estado: string;
@@ -17,7 +18,7 @@ interface Punto {
   hora?: string;
   direccion?: string;
   sector?: string;
-  // otros campos si tienes
+  idCliente?: string;
 }
 
 interface Viaje {
@@ -25,94 +26,48 @@ interface Viaje {
   direccion: string;
   fecha: string;
   horaSalida: string;
-  // otros campos si tienes
 }
 
 interface PuntoConViaje {
-  viaje: Viaje;  // aquí guardamos el viaje completo
+  viaje: Viaje;
   punto: Punto;
 }
 
 export default function Solicitudes() {
-  const [activeTab, setActiveTab] = useState<
-    "todos" | "aceptados" | "pendientes" | "negados"
-  >("todos");
+  const [activeTab, setActiveTab] = useState<"todos" | "aceptados" | "pendientes" | "negados">("todos");
   const [puntosPendientes, setPuntosPendientes] = useState<PuntoConViaje[]>([]);
   const [puntosAceptados, setPuntosAceptados] = useState<PuntoConViaje[]>([]);
   const [puntosNegados, setPuntosNegados] = useState<PuntoConViaje[]>([]);
   const [loading, setLoading] = useState(false);
 
   const { user } = useAuth();
-  const { solicitudesDePuntos, solicitudesDePuntosPorEstado } = useViajes();
+  const { solicitudesDePuntos, actualizarEstadoPunto, obtenerPuntosPorEstado } = useViajes();
 
-  // Carga pendientes
   useEffect(() => {
-    async function fetchPendientes() {
-      if (!user?.uid) return;
-      setLoading(true);
-      try {
-        // Aunque traemos puntos filtrados, necesitamos el viaje completo para mostrar datos
-        const todos = await solicitudesDePuntos();
-        const filtrados = todos.filter(({ punto }) => punto.estado === "pendiente");
-        setPuntosPendientes(
-          filtrados.map(({ viaje, punto }) => ({
-            viaje,
-            punto,
-          }))
-        );
-      } catch (error) {
-        console.error("Error al obtener puntos pendientes:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    if (activeTab === "pendientes" || activeTab === "todos") fetchPendientes();
-  }, [user, solicitudesDePuntos, solicitudesDePuntosPorEstado, activeTab]);
-
-  // Carga aceptados
-  useEffect(() => {
-    async function fetchAceptados() {
+    async function fetchData() {
       if (!user?.uid) return;
       setLoading(true);
       try {
         const todos = await solicitudesDePuntos();
-        const filtrados = todos.filter(({ punto }) => punto.estado === "aceptado");
-        setPuntosAceptados(
-          filtrados.map(({ viaje, punto }) => ({
-            viaje,
-            punto,
-          }))
-        );
+        if (activeTab === "pendientes" || activeTab === "todos") {
+          const filtrados = todos.filter(({ punto }) => punto.estado === "pendiente");
+          setPuntosPendientes(filtrados);
+        }
+        if (activeTab === "aceptados" || activeTab === "todos") {
+          const filtrados = todos.filter(({ punto }) => punto.estado === "aceptado");
+          setPuntosAceptados(filtrados);
+        }
+        if (activeTab === "negados" || activeTab === "todos") {
+          const filtrados = todos.filter(({ punto }) => punto.estado === "negado");
+          setPuntosNegados(filtrados);
+        }
       } catch (error) {
-        console.error("Error al obtener puntos aceptados:", error);
+        console.error("Error al obtener solicitudes:", error);
       } finally {
         setLoading(false);
       }
     }
-    if (activeTab === "aceptados" || activeTab === "todos") fetchAceptados();
-  }, [user, solicitudesDePuntos, activeTab]);
-
-  // Carga negados
-  useEffect(() => {
-    async function fetchNegados() {
-      if (!user?.uid) return;
-      setLoading(true);
-      try {
-        const todos = await solicitudesDePuntos();
-        const filtrados = todos.filter(({ punto }) => punto.estado === "negado");
-        setPuntosNegados(
-          filtrados.map(({ viaje, punto }) => ({
-            viaje,
-            punto,
-          }))
-        );
-      } catch (error) {
-        console.error("Error al obtener puntos negados:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    if (activeTab === "negados" || activeTab === "todos") fetchNegados();
+    fetchData();
   }, [user, solicitudesDePuntos, activeTab]);
 
   const renderSolicitudes = () => {
@@ -142,13 +97,62 @@ export default function Solicitudes() {
     }
 
     return puntosMostrar.map(({ viaje, punto }, index) => (
-      <View key={`${viaje.id}-${index}`} style={styles.solicitudCard}>
-        <View style={styles.solicitudInfo}>
-          <Text style={styles.solicitudTitle}>Viaje: {viaje.direccion}</Text>
-          <Text style={styles.solicitudPrice}>Estado: {punto.estado}</Text>
-          <Text style={styles.solicitudDetails}>Fecha: {viaje.fecha || "N/A"}</Text>
-          <Text style={styles.solicitudDetails}>Hora: {viaje.horaSalida || "N/A"}</Text>
-          <Text style={styles.solicitudDetails}>Dirección del punto: {punto.direccion || "N/A"}</Text>
+      <View key={`${viaje.id}-${index}`} style={styles.puntoCard}>
+        <View style={styles.puntoImagen}>
+          <Ionicons name="location-sharp" size={30} color="blue" />
+        </View>
+
+        <View style={{ flex: 1 }}>
+          <Text style={styles.puntoTitulo}>Viaje: {viaje.direccion}</Text>
+          <Text style={styles.puntoDireccion}>Dirección Solicitada: {punto.direccion || "Sin dirección"}</Text>
+          <Text style={styles.puntoDireccion}>Fecha: {viaje.fecha}</Text>
+          <Text style={styles.puntoDireccion}>Hora: {viaje.horaSalida}</Text>
+          <Text style={[styles.puntoDireccion, { color: colors.blue, fontWeight: "bold" }]}>
+            {punto.estado.charAt(0).toUpperCase() + punto.estado.slice(1)}
+          </Text>
+          {punto.estado === "pendiente" && (
+            <View style={styles.puntoBotones}>
+              <TouchableOpacity
+                style={styles.btnNegar}
+                onPress={async () => {
+                  try {
+                    await actualizarEstadoPunto(viaje.id, punto.idCliente!, "negado");
+                    const puntosActualizados = await obtenerPuntosPorEstado("pendiente");
+                    setPuntosPendientes(
+                      puntosActualizados.map(({ viajeId, viajeDireccion, punto }) => ({
+                        viaje: { id: viajeId, direccion: viajeDireccion, fecha: "", horaSalida: "" },
+                        punto,
+                      }))
+                    );
+                  } catch (err) {
+                    console.error("Error al negar punto:", err);
+                  }
+                }}
+              >
+                <Ionicons name="close" size={20} color="blue" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.btnAceptar}
+                onPress={async () => {
+                  try {
+                    await actualizarEstadoPunto(viaje.id, punto.idCliente!, "aceptado");
+                    const puntosActualizados = await obtenerPuntosPorEstado("pendiente");
+                    setPuntosPendientes(
+                      puntosActualizados.map(({ viajeId, viajeDireccion, punto }) => ({
+                        viaje: { id: viajeId, direccion: viajeDireccion, fecha: "", horaSalida: "" },
+                        punto,
+                      }))
+                    );
+                  } catch (err) {
+                    console.error("Error al aceptar punto:", err);
+                  }
+                }}
+              >
+                <Ionicons name="checkmark-sharp" size={24} color="blue" />
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </View>
     ));
@@ -158,19 +162,15 @@ export default function Solicitudes() {
     <View style={styles.container}>
       <Text style={styles.header}>Solicitudes</Text>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={{ maxHeight: 55 }}
-      >
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 70 }}>
         <View style={styles.tabs}>
           {["todos", "aceptados", "pendientes", "negados"].map((tab) => (
             <TouchableOpacity
               key={tab}
-              style={[styles.tab, activeTab === tab ? styles.activeTab : null]}
+              style={[styles.tab, activeTab === tab && styles.activeTab]}
               onPress={() => setActiveTab(tab as any)}
             >
-              <Text style={styles.tabText}>
+              <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
                 {tab.charAt(0).toUpperCase() + tab.slice(1)}
               </Text>
             </TouchableOpacity>
@@ -200,45 +200,75 @@ const styles = StyleSheet.create({
   },
   tabs: {
     flexDirection: "row",
-    justifyContent: "space-around",
-    marginBottom: 20,
+    alignItems: "center",
   },
   tab: {
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 20,
     backgroundColor: "#EAEAEA",
     borderRadius: 20,
-    marginHorizontal: 3,
+    marginHorizontal: 4,
   },
   activeTab: {
     backgroundColor: "#007BFF",
   },
   tabText: {
-    color: colors.white,
     fontWeight: "600",
-  },
-  solicitudCard: {
-    backgroundColor: "#F0F8FF",
-    borderRadius: 10,
-    marginBottom: 15,
-    padding: 15,
-  },
-  solicitudInfo: {
-    paddingBottom: 10,
-  },
-  solicitudTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 5,
-  },
-  solicitudPrice: {
     fontSize: 14,
-    marginBottom: 5,
+    color: "#333",
   },
-  solicitudDetails: {
-    fontSize: 12,
-    marginBottom: 5,
-    color: "#007BFF",
+  activeTabText: {
+    color: colors.white,
+  },
+  puntoCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.lightGrey,
+    borderRadius: 12,
+    padding: 12,
+    paddingVertical: 20,
+    marginTop: 10,
+  },
+  puntoImagen: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    marginRight: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  puntoTitulo: {
+    fontWeight: "bold",
+    fontSize: 15,
+  },
+  puntoDireccion: {
+    fontSize: 13,
+    color: colors.grey,
+  },
+  puntoBotones: {
+    flexDirection: "row",
+    marginTop: 10,
+    gap: 10,
+  },
+  btnNegar: {
+    backgroundColor: colors.white,
+    borderColor: colors.blue,
+    borderWidth: 1,
+    borderRadius: 20,
+    width: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  btnAceptar: {
+    backgroundColor: colors.white,
+    borderRadius: 20,
+    borderColor: colors.blue,
+    borderWidth: 1,
+    width: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
   },
   solicitudesList: {
     paddingBottom: 100,

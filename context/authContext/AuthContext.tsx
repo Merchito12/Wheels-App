@@ -60,6 +60,7 @@ const uploadImageToStorage = async (uri: string, folder: string, id: string) => 
   }
 };
 
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
@@ -69,6 +70,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [userRole, setUserRole] = useState<string | null>(null);
   const [profilePhotoURL, setProfilePhotoURL] = useState<string | null>(null);
   const [car, setCar] = useState<Car | null>(null);
+  
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {

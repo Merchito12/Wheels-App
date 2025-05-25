@@ -13,8 +13,9 @@ import { useAuth } from "../../context/authContext/AuthContext";
 import { useViajes } from "../../context/viajeContext/ViajeConductorContext";
 import colors from "../../styles/Colors";
 import { Ionicons } from '@expo/vector-icons';
-import { EstadoPunto } from "@/context/viajeContext/viajeClienteContext";
+import { EstadoPunto, useCliente } from "@/context/viajeContext/viajeClienteContext";
 import { useViajeSeleccionado } from '../../context/viajeContext/ViajeSeleccionadoContext';
+import MapComponent from "@/components/shared/Map";
 
 
 interface Punto {
@@ -35,11 +36,18 @@ interface Viaje {
   puntos: Punto[]; // ojo, puntos es arreglo de objetos Punto
   estado: string;
 }
+interface Cliente {
+  id: string;
+  displayName: string;
+  profilePhotoURL: string;
+}
+
 
 export default function Viajes() {
   const { userName, user } = useAuth();
   const { viajes, obtenerPuntosPorEstado,
     actualizarEstadoPunto,  obtenerPuntosPorEstadoYEstadoViaje  } = useViajes();
+    const { car } = useAuth();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [viajesEnCurso, setViajesEnCurso] = useState<Viaje[]>([]);
@@ -47,6 +55,9 @@ export default function Viajes() {
   const [puntosPendientes, setPuntosPendientes] = useState<
     { viajeId: string; viajeDireccion: string; punto: Punto }[]
   >([]);
+
+
+  
   const [modalVisible, setModalVisible] = useState(false);
   const [accionPendiente, setAccionPendiente] = useState<{
     viajeId: string;
@@ -54,6 +65,8 @@ export default function Viajes() {
     nuevoEstado: EstadoPunto;
   } | null>(null);
   const { setViaje } = useViajeSeleccionado();
+  const viajesPorIniciar = viajes.filter((v) => v.estado === "por iniciar");
+
 
 
   const onChangeSearch = (query: string) => setSearchQuery(query);
@@ -77,96 +90,117 @@ export default function Viajes() {
     fetchPendientesPorIniciar();
   }, [user]);
 
-  // Filtrar viajes por búsqueda (origen o destino)
-  const viajesFiltrados = viajes.filter((viaje) => {
-    const textoBusqueda = searchQuery.toLowerCase();
+  const viajesFiltrados = viajesPorIniciar
+  .filter((v) => v.estado === "por iniciar")
+  .filter((viaje) => {
+    const texto = searchQuery.toLowerCase();
     return (
-      viaje.direccion.toLowerCase().includes(textoBusqueda) ||
-      (viaje.conductor && viaje.conductor.toLowerCase().includes(textoBusqueda))
+      viaje.direccion?.toLowerCase().includes(texto) ||
+      viaje.fecha?.toLowerCase().includes(texto) ||
+      viaje.horaSalida?.toLowerCase().includes(texto)||
+      viaje.precio?.toLowerCase().includes(texto)
     );
   });
+  
 
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.greetingText}>
-        Hola, {userName ? userName.charAt(0).toUpperCase() + userName.slice(1) : ""}
-      </Text>
+     <View style={styles.headerRow}>
+          <Text style={styles.greetingText}>
+            Hola, {userName ? userName.charAt(0).toUpperCase() + userName.slice(1) : ""}
+          </Text>
 
-      <Searchbar
+         
+        </View>
+        <Searchbar
         placeholder="Buscar viaje..."
         value={searchQuery}
         onChangeText={onChangeSearch}
         style={styles.barraBusqueda}
       />
+      
 
       {viajesEnCurso.length > 0 && (
-  <View style={styles.headerContainer}>
-    <View style={styles.headerTextContainer}>
-      <Text style={styles.headerTitle}>Viaje en Curso</Text>
-      <Text style={styles.headerSubtitle}>
-        {viajesEnCurso[0].fecha}, {viajesEnCurso[0].horaSalida}, {viajesEnCurso[0].direccion}
-      </Text>
-      <TouchableOpacity onPress={() => router.push('../detallesViaje/EnCursoConductor')}>
-        <Text style={styles.verDetalles}>Ver detalles</Text>
-      </TouchableOpacity>
-    </View>
-    <Image
-      source={require("../../assets/images/carImage.png")}
-      style={styles.headerImage}
-    />
+      <View style={styles.headerContainer}>
+        <View style={styles.headerTextContainer}>
+          <Text style={styles.headerTitle}>Viaje en Curso</Text>
+          <Text style={styles.headerSubtitle}>
+            {viajesEnCurso[0].fecha}, {viajesEnCurso[0].horaSalida}, {viajesEnCurso[0].direccion}
+          </Text>
+          <TouchableOpacity onPress={() => router.push('../detallesViaje/EnCursoConductor')}>
+            <Text style={styles.verDetalles}>Ver detalles</Text>
+          </TouchableOpacity>
+        </View>
+        <Image
+          source={{ uri: car?.photoURL || "../../assets/images/carImage.png" }}
+          style={styles.headerImage}
+        />
   </View>
 )}
 
+
+
       {/* Tus viajes */}
       <View style={styles.section}>
-  <View style={styles.sectionHeader}>
-    <Text style={styles.sectionTitle}>Tus viajes</Text>
-    <TouchableOpacity>
-      <Text style={styles.verMas}>Ver más</Text>
-    </TouchableOpacity>
-  </View>
-
-  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-    {viajesFiltrados.length > 0 ? (
-      viajesFiltrados.map((viaje, index) => (
-        <View key={viaje.id} style={styles.viajeCard}>
-          <View style={styles.fechaTag}>
-            <Text style={styles.fechaText}>{viaje.fecha}</Text>
-          </View>
-
-          <View style={styles.cardImage} />
-
-          <Text style={styles.viajeCiudad}>{viaje.direccion}</Text>
-
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-            <Ionicons name="time-outline" size={14} color="#555" />
-            <Text style={styles.viajeDesc}>{"  "}{viaje.horaSalida} h</Text>
-          </View>
-
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
-            <Ionicons name="cash-outline" size={14} color="#555" />
-            <Text style={styles.viajeDesc}>{"  "}${viaje.precio}</Text>
-          </View>
-
-          <Text style={styles.viajeSolicitudes}>{viaje.estado}</Text>
-
-          <TouchableOpacity
-            style={styles.verInfoButton}
-            onPress={() => {
-              setViaje(viaje);
-              router.push('/detallesViaje/PorIniciarConductor');
-            }}
-          >
-            <Text style={styles.verInfoText}>Ver info</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Tus Próximos Viajes</Text>
+          <TouchableOpacity>
+            <Text style={styles.verMas}>Ver más</Text>
           </TouchableOpacity>
-
         </View>
-      ))
-    ) : (
-      <Text style={styles.noViajesText}>No tienes viajes creados aún.</Text>
-    )}
-  </ScrollView>
-</View>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {viajesFiltrados.length > 0 ? (
+            viajesFiltrados.map((viaje, index) => (
+              <View key={viaje.id} style={styles.viajeCard}>
+                <View style={styles.fechaTag}>
+                  <Text style={styles.fechaText}>{viaje.fecha}</Text>
+                </View>
+
+                <View style={styles.cardImage}>
+                <MapComponent viaje={viaje} />
+              </View>
+
+                <Text style={styles.viajeCiudad}>{viaje.direccion}</Text>
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                  <Ionicons name="time-outline" size={14} color="#555" />
+                  <Text style={styles.viajeDesc}>{"  "}{viaje.horaSalida} h</Text>
+                </View>
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+                  <Ionicons name="cash-outline" size={14} color="#555" />
+                  <Text style={styles.viajeDesc}>{"  "}${viaje.precio}</Text>
+                </View>
+
+                <Text style={styles.viajeSolicitudes}>{viaje.estado}</Text>
+
+                <TouchableOpacity
+                  style={styles.verInfoButton}
+                  onPress={() => {
+                    setViaje(viaje);
+                    router.push('/detallesViaje/PorIniciarConductor');
+                  }}
+                >
+                  <Text style={styles.verInfoText}>Ver info</Text>
+                </TouchableOpacity>
+
+              </View>
+            ))
+          ) : (
+            <Text style={styles.noViajesText}>No tienes viajes creados aún.</Text>
+          )}
+        </ScrollView>
+      </View>
+      <TouchableOpacity
+            style={styles.createIconButton}
+            onPress={() => router.push("/conductor/miViaje")}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <Ionicons name="add-circle-outline" size={22} color={colors.blue} />
+              <Text style={styles.createIconLabel}>{"  "}Crear Nuevo Viaje</Text>
+            </View>
+          </TouchableOpacity>
 
 
       {/* Puntos Solicitados */}
@@ -174,13 +208,15 @@ export default function Viajes() {
         <Text style={styles.sectionTitle}>Puntos Solicitados</Text>
         {puntosPendientes.map(({ viajeId, viajeDireccion, punto }, index) => (
           <View key={`${viajeId}-${index}`} style={styles.puntoCard}>
-            <View style={styles.puntoImagen} />
+            <View style={styles.puntoImagen}>
+                <Ionicons name="location-sharp" size={30} color="blue" />
+            </View>
+             
             <View style={{ flex: 1 }}>
               <Text style={styles.puntoTitulo}>
-                Punto {index + 1} - Viaje: {viajeDireccion}
+               Viaje: {viajeDireccion}
               </Text>
               <Text style={styles.puntoDireccion}>{punto.direccion}</Text>
-              <Text style={styles.puntoDireccion}>Estado: {punto.estado}</Text>
             </View>
 
             <View style={styles.puntoBotones}>
@@ -196,7 +232,7 @@ export default function Viajes() {
                   }
                 }}
               >
-                <Ionicons name="close" size={20} color="#fff" />
+                <Ionicons name="close" size={20} color="blue" />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -211,7 +247,7 @@ export default function Viajes() {
                   }
                 }}
               >
-                <Ionicons name="checkmark" size={20} color="#fff" />
+              <Ionicons name="checkmark-sharp" size={24} color="blue" />
               </TouchableOpacity>
             </View>
           </View>
@@ -219,13 +255,7 @@ export default function Viajes() {
 
       </View>
 
-      {/* Botón "Crear Viaje" */}
-      <TouchableOpacity
-        style={styles.createButton}
-        onPress={() => router.push("/conductor/miViaje")}
-      >
-        <Text style={styles.createButtonText}>Crear Viaje</Text>
-      </TouchableOpacity>
+      
     </ScrollView>
   );
 }
@@ -241,7 +271,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.black,
     marginBottom: 20,
-    marginTop: 40,
+    marginTop: 30,
   },
   barraBusqueda: {
     marginBottom: 20,
@@ -325,7 +355,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.lightGrey100,
     borderRadius: 8,
     marginBottom: 10,
+    overflow: "hidden", // ← necesario para que el mapa no se desborde
   },
+  
   viajeCiudad: {
     fontWeight: "bold",
     fontSize: 16,
@@ -365,14 +397,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.lightGrey,
     borderRadius: 12,
     padding: 12,
+    paddingVertical: 20,
     marginTop: 10,
   },
   puntoImagen: {
     width: 40,
     height: 40,
-    backgroundColor: colors.lightGrey100,
     borderRadius: 8,
     marginRight: 12,
+    justifyContent: "center",
+    alignItems: "center",
   },
   puntoTitulo: {
     fontWeight: "bold",
@@ -401,7 +435,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   btnNegar: {
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.white,
+    borderColor: colors.blue,
+    borderWidth: 1,
     borderRadius: 20,
     width: 32,
     height: 32,
@@ -409,12 +445,34 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   btnAceptar: {
-    backgroundColor: "#2ecc71",
+    backgroundColor: colors.white,
     borderRadius: 20,
+    borderColor: colors.blue,
+    borderWidth: 1,
     width: 32,
     height: 32,
     alignItems: "center",
     justifyContent: "center",
   },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  createIconButton: {
+    padding: 4,
+    marginBottom: 20,
+  },
+  createIconLabel: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: colors.blue,
+    
+
+
+  },
+  
+  
   
 });

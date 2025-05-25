@@ -6,6 +6,7 @@ import { HomeIcon, UserIcon, ActivityIcon, HistoryIcon } from "../../components/
 import colors from "../../styles/Colors";
 import { TouchableOpacity, StyleSheet, Text, View } from "react-native";
 import React from "react";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function Tabslayout() {
   return (
@@ -47,7 +48,9 @@ export default function Tabslayout() {
             tabBarLabel: "",
             tabBarIcon: ({ focused }) => (
               <View style={styles.iconContainer}>
-                <Text style={[styles.textStyle, { color: focused ? colors.lightGrey : colors.white }]}>Mi{'\n'}Viaje</Text>
+                <Ionicons name="add" size={30} color="white" />
+
+                
               </View>
             ),
             tabBarIconStyle: styles.tabBarIconStyle,
@@ -99,25 +102,25 @@ export default function Tabslayout() {
 
 const styles = StyleSheet.create({
   iconContainer: {
-    width: 70, 
-    height: 70, 
+    width: 65, 
+    height: 65, 
     borderRadius: 35,  
     backgroundColor: colors.blue, 
     borderColor: colors.lightGrey100,  
     borderWidth: 2,  
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 20,
   },
   textStyle: {
     textAlign: 'center',  
     fontSize: 16,     
   },
   tabBarIconStyle: {
-    fontSize: 30, 
+    fontSize: 20, 
   },
   tabBarStyle: {
-    height: 80,           
+    height: 85,           
     padding: 20,        
   },
   tabBarLabel: {
