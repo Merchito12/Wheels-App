@@ -6,6 +6,11 @@ import { Searchbar } from "react-native-paper";
 import colors from "../../styles/Colors"; 
 import { StarIcon, ArrowRight } from "../../components/Icons"; 
 import { useCliente } from "../../context/viajeContext/viajeClienteContext";
+import { collection, query, where, onSnapshot, doc, getDoc } from "firebase/firestore";
+import { useAuth } from "@/context/authContext/AuthContext";
+import { db } from "@/utils/FirebaseConfig";
+
+
 
 export default function MisViajes() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -18,28 +23,68 @@ export default function MisViajes() {
   const { obtenerViajesPorEstadoViajeYEstadoPunto } = useCliente();
 
   const onChangeSearch = (query: string) => setSearchQuery(query);
+    const { user } = useAuth(); // usuario logueado
+  
 
   useEffect(() => {
-    async function cargarViajes() {
-      setLoading(true);
-      try {
-        // Obtenemos viajes finalizados con puntos aceptados
-        const viajesFiltrados = await obtenerViajesPorEstadoViajeYEstadoPunto("finalizado", "aceptado");
-        setViajes(viajesFiltrados);
-      } catch (error) {
-        console.error("Error cargando viajes:", error);
-      } finally {
+    if (!user) return;
+  
+    setLoading(true);
+  
+    const viajesRef = collection(db, "viajes");
+    const q = query(viajesRef, where("estado", "==", "finalizado"));
+  
+    const unsubscribe = onSnapshot(
+      q,
+      async (querySnapshot) => {
+        try {
+          const viajesDocs = querySnapshot.docs;
+  
+          // Obtener viajes con conductor y puntos aceptados
+          const viajesFiltrados = [];
+  
+          for (const docSnap of viajesDocs) {
+            const data = docSnap.data();
+  
+            // Filtrar solo viajes que tengan al menos un punto aceptado
+            const tienePuntoAceptado = (data.puntos || []).some(
+              (p: any) => p.estado === "aceptado"
+            );
+            if (!tienePuntoAceptado) continue;
+  
+            // Obtener nombre conductor
+            let conductorNombre = "Desconocido";
+            if (data.idConductor) {
+              const docRef = doc(db, "users", data.idConductor);
+              const docSnapUser = await getDoc(docRef);
+              if (docSnapUser.exists()) {
+                const conductorData = docSnapUser.data();
+                conductorNombre = conductorData.name || conductorNombre;
+              }
+            }
+  
+            viajesFiltrados.push({
+              id: docSnap.id,
+              ...data,
+              conductor: conductorNombre,
+            });
+          }
+  
+          setViajes(viajesFiltrados);
+        } catch (error) {
+          console.error("Error cargando viajes finalizados:", error);
+        } finally {
+          setLoading(false);
+        }
+      },
+      (error) => {
+        console.error("Error en onSnapshot viajes finalizados:", error);
         setLoading(false);
       }
-    }
-    cargarViajes();
-  }, []);
-
-  // Función para abrir modal y mostrar detalles
-  const abrirDetalles = (viaje: any) => {
-    setSelectedViaje(viaje);
-    setModalVisible(true);
-  };
+    );
+  
+    return () => unsubscribe();
+  }, [user]);
 
   return (
     <View style={styles.container}>
@@ -62,7 +107,7 @@ export default function MisViajes() {
             <TouchableOpacity 
               key={viaje.id} 
               style={styles.tripCard} 
-              onPress={() => abrirDetalles(viaje)}
+              
             >
               <Image
                 source={require("../../assets/images/carImage.png")} 

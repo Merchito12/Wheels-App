@@ -10,6 +10,11 @@ import {
 import { useCliente, EstadoPunto, Viaje, Punto } from "../../context/viajeContext/viajeClienteContext";
 import colors from "@/styles/Colors";
 import { Ionicons } from "@expo/vector-icons";
+import { useAuth } from "@/context/authContext/AuthContext"; // importa tu contexto auth
+import { collection, query, onSnapshot } from "firebase/firestore";
+import { db } from "@/utils/FirebaseConfig";
+
+
 
 interface PuntoConViaje {
   viaje: Viaje;
@@ -20,56 +25,54 @@ export default function Solicitudes() {
   const [activeTab, setActiveTab] = useState<EstadoPunto | "todos">("todos");
   const [puntosMostrar, setPuntosMostrar] = useState<PuntoConViaje[]>([]);
   const [loading, setLoading] = useState(false);
+  const { user } = useAuth(); // usuario logueado
+
 
   const {
     obtenerViajesPorEstadoPunto,
   } = useCliente();
 
   useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
-      try {
+    if (!user) return;
+  
+    setLoading(true);
+    const viajesRef = collection(db, "viajes");
+  
+    // Listener para todos los viajes
+    const unsubscribe = onSnapshot(viajesRef, (querySnapshot) => {
+      const resultados: PuntoConViaje[] = [];
+  
+      querySnapshot.forEach((docSnap) => {
+        const data = docSnap.data() as Viaje;
+  
+        // Filtrar puntos según el tab activo y usuario
+        let puntosFiltrados: Punto[] = [];
+  
         if (activeTab === "todos") {
-          // Obtener viajes con puntos en cualquier estado pendiente, aceptado o negado
-          const pendientes = await obtenerViajesPorEstadoPunto("pendiente");
-          const aceptados = await obtenerViajesPorEstadoPunto("aceptado");
-          const negados = await obtenerViajesPorEstadoPunto("negado");
-
-          // Mapear a PuntoConViaje y unir todos
-          const mapPuntos = (viajes: Viaje[], estado: EstadoPunto) =>
-            viajes.flatMap((viaje) =>
-              viaje.puntos
-                .filter((p) => p.estado === estado)
-                .map((punto) => ({ viaje, punto }))
-            );
-
-          const todosPuntos = [
-            ...mapPuntos(pendientes, "pendiente"),
-            ...mapPuntos(aceptados, "aceptado"),
-            ...mapPuntos(negados, "negado"),
-          ];
-
-          setPuntosMostrar(todosPuntos);
+          puntosFiltrados = data.puntos.filter((p) => p.idCliente === user.uid);
         } else {
-          // Obtener viajes con puntos en el estado seleccionado
-          const viajes = await obtenerViajesPorEstadoPunto(activeTab as EstadoPunto);
-
-          // Mapear a PuntoConViaje filtrando solo los puntos del estado activo
-          const puntos = viajes.flatMap((viaje) =>
-            viaje.puntos
-              .filter((p) => p.estado === activeTab)
-              .map((punto) => ({ viaje, punto }))
+          puntosFiltrados = data.puntos.filter(
+            (p) => p.idCliente === user.uid && p.estado === activeTab
           );
-          setPuntosMostrar(puntos);
         }
-      } catch (error) {
-        console.error("Error al obtener solicitudes:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchData();
-  }, [activeTab]);
+  
+        puntosFiltrados.forEach((punto) => {
+          resultados.push({
+            viaje: { id: docSnap.id, ...((({ id, ...rest }) => rest)(data)) },
+            punto,
+          });
+        });
+      });
+  
+      setPuntosMostrar(resultados);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error escuchando viajes en tiempo real:", error);
+      setLoading(false);
+    });
+  
+    return () => unsubscribe();
+  }, [activeTab, user]);
 
   return (
     <View style={styles.container}>

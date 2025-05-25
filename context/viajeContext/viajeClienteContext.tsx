@@ -11,6 +11,8 @@ import {
 } from "firebase/firestore";
 import { db } from "../../utils/FirebaseConfig";
 import { useAuth } from "../authContext/AuthContext";
+import { onSnapshot } from "firebase/firestore";
+
 
 export type EstadoViaje = "por iniciar" | "en curso" | "finalizado";
 export type EstadoPunto = "pendiente" | "aceptado" | "negado";

@@ -13,7 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import colors from "../../styles/Colors";
 import { SortIcon, FilterIcon } from "../../components/Icons";
 import { useCliente } from "../../context/viajeContext/viajeClienteContext";
-import { doc, getDoc } from "firebase/firestore";
+import { collection, doc, getDoc, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "../../utils/FirebaseConfig";
 
 import ModalReservaViaje from "../../components/modales/ModalReservaViaje";
@@ -41,28 +41,55 @@ export default function Index() {
   const onChangeSearch = (query: string) => setSearchQuery(query);
 
   useEffect(() => {
-    async function cargarViajeEnCurso() {
-      if (!user) return;
-      setLoading(true);
-      try {
-        // Función del contexto que devuelve viajes con estado 'en curso' y puntos con estado 'aceptado'
-        const viajesEnCurso = await obtenerViajesPorEstadoViajeYEstadoPunto("en curso", "aceptado");
+    if (!user) return;
   
-        // Filtrar viajes donde exista un punto cuyo idCliente sea igual al user.uid
-        const viajeFiltrado = viajesEnCurso.find((viaje) =>
-          viaje.puntos.some((punto: any) => punto.idCliente === user.uid)
-        );
-        
+    setLoading(true);
   
-        setViajeEnCurso(viajeFiltrado || null);
-      } catch (error) {
-        console.error("Error cargando viaje en curso:", error);
-      } finally {
+    const viajesRef = collection(db, "viajes");
+    const q = query(viajesRef, where("estado", "==", "en curso"));
+  
+    const unsubscribe = onSnapshot(
+      q,
+      async (querySnapshot) => {
+        let viajeEncontrado: any = null;
+  
+        for (const docSnap of querySnapshot.docs) {
+          const data = docSnap.data();
+          const puntos = data.puntos || [];
+  
+          // ¿Tiene punto aceptado para este usuario?
+          const puntoAceptado = puntos.find(
+            (p: any) => p.estado === "aceptado" && p.idCliente === user.uid
+          );
+  
+          if (puntoAceptado) {
+            viajeEncontrado = { id: docSnap.id, ...data };
+  
+            // Obtener foto del conductor si no está ya
+            if (viajeEncontrado.idConductor && !viajeEncontrado.conductorCarPhoto) {
+              const docRef = doc(db, "users", viajeEncontrado.idConductor);
+              const docSnapUser = await getDoc(docRef);
+              if (docSnapUser.exists()) {
+                const conductorData = docSnapUser.data();
+                viajeEncontrado.conductorCarPhoto = conductorData.car?.photoURL || null;
+              }
+            }
+            break; // ya encontramos el viaje, no continuar
+          }
+        }
+  
+        setViajeEnCurso(viajeEncontrado);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Error en onSnapshot viajes en curso:", error);
         setLoading(false);
       }
-    }
-    cargarViajeEnCurso();
+    );
+  
+    return () => unsubscribe();
   }, [user]);
+  
 
 
   
@@ -94,47 +121,66 @@ export default function Index() {
         setLoading(false);
       }
     }
+
+
     cargarViajeEnCurso();
   }, [user]);
   
   useEffect(() => {
-    async function cargarViajes() {
-      setLoading(true);
-      try {
-        const viajes = await obtenerViajesPorEstado("por iniciar");
-
-        // Obtener info de conductor para cada viaje
-        const viajesConductor = await Promise.all(
-          viajes.map(async (viaje: any) => {
-            if (viaje.idConductor) {
-              const docRef = doc(db, "users", viaje.idConductor);
-              const docSnap = await getDoc(docRef);
-              if (docSnap.exists()) {
-                const conductorData = docSnap.data();
-                return {
-                  ...viaje,
-                  conductorNombre: conductorData.name || "Sin nombre",
-                  conductorCarPhoto: conductorData.car?.photoURL || null,
-                };
+    if (!user) return;
+  
+    setLoading(true);
+  
+    const viajesRef = collection(db, "viajes");
+    const q = query(viajesRef, where("estado", "==", "por iniciar"));
+  
+    const unsubscribe = onSnapshot(
+      q,
+      async (querySnapshot) => {
+        try {
+          const viajesDocs = querySnapshot.docs;
+  
+          // Para cada viaje, obtenemos info del conductor y armamos el objeto completo
+          const viajesConductor = await Promise.all(
+            viajesDocs.map(async (docSnap) => {
+              const viaje: { id: string; idConductor?: string; [key: string]: any } = { id: docSnap.id, ...docSnap.data() };
+  
+              if (viaje.idConductor) {
+                const docRef = doc(db, "users", viaje.idConductor);
+                const docSnapUser = await getDoc(docRef);
+                if (docSnapUser.exists()) {
+                  const conductorData = docSnapUser.data();
+                  return {
+                    ...viaje,
+                    conductorNombre: conductorData.name || "Sin nombre",
+                    conductorCarPhoto: conductorData.car?.photoURL || null,
+                  };
+                }
               }
-            }
-            return {
-              ...viaje,
-              conductorNombre: "Sin conductor",
-              conductorCarPhoto: null,
-            };
-          })
-        );
-
-        setViajesPorIniciar(viajesConductor);
-      } catch (error) {
-        console.error("Error cargando viajes:", error);
-      } finally {
+              return {
+                ...viaje,
+                conductorNombre: "Sin conductor",
+                conductorCarPhoto: null,
+              };
+            })
+          );
+  
+          setViajesPorIniciar(viajesConductor);
+        } catch (error) {
+          console.error("Error procesando viajes por iniciar:", error);
+        } finally {
+          setLoading(false);
+        }
+      },
+      (error) => {
+        console.error("Error escuchando viajes por iniciar:", error);
         setLoading(false);
       }
-    }
-    cargarViajes();
-  }, []);
+    );
+  
+    return () => unsubscribe();
+  }, [user]);
+  
 
   async function obtenerConductorPorId(idConductor: string) {
     setCargandoConductor(true);
@@ -188,7 +234,16 @@ export default function Index() {
         </TouchableOpacity>
       </View>
 
-      {viajeEnCurso ? (
+      
+
+
+
+      <ScrollView
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContainer}
+      >
+
+{viajeEnCurso ? (
       <View style={styles.headerContainer}>
         <View style={styles.textContainer}>
           <Text style={styles.headerTitle}>{viajeEnCurso.direccion}</Text>
@@ -212,13 +267,6 @@ export default function Index() {
         />
       </View>
 ) : null}
-
-
-
-      <ScrollView
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContainer}
-      >
         <View style={styles.tripsContainer}>
           {loading ? (
             <ActivityIndicator size="large" color={colors.blue} />
