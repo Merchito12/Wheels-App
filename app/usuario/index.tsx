@@ -19,9 +19,11 @@ import { db } from "../../utils/FirebaseConfig";
 import ModalReservaViaje from "../../components/modales/ModalReservaViaje";
 import { useAuth } from "../../context/authContext/AuthContext";
 import { router } from "expo-router";
+import { useRegisterPushNotifications } from "../hooks/useRegisterPushNotifications";
 
 
 export default function Index() {
+   useRegisterPushNotifications();
   const [searchQuery, setSearchQuery] = useState("");
   const [viajesPorIniciar, setViajesPorIniciar] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);

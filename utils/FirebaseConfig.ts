@@ -5,7 +5,7 @@ import { getAuth } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 import Constants from "expo-constants";
 
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyCuzTXMl1at07F8anls2058sqyOOn8uejc",
   authDomain: "proyecto-final-dam-85abd.firebaseapp.com",
   projectId: "proyecto-final-dam-85abd",

@@ -29,7 +29,7 @@ const LoginScreen = () => {
       } else if (userRole === 'Usuario') {
         router.replace("./usuario");
       } else {
-        router.replace("./");
+        router.replace("./usuario");
       }
     }
   }, [userRole]);

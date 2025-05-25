@@ -38,6 +38,9 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "notification": {
+      "vapidPublicKey": "BDzIwEBGquKysc8EeEDl_PppCbQQ8TUb8uAsaN8XQE0xprouCeyFq_vNBzoZxWBnPTa75B6nqBdTnhiZwStvlFU"
     }
   }
 }

@@ -15,6 +15,8 @@ import colors from "../../styles/Colors";
 import { Ionicons } from '@expo/vector-icons';
 import { EstadoPunto } from "@/context/viajeContext/viajeClienteContext";
 import { useViajeSeleccionado } from '../../context/viajeContext/ViajeSeleccionadoContext';
+import { useRegisterPushNotifications } from "../hooks/useRegisterPushNotifications";
+
 
 
 interface Punto {
@@ -37,6 +39,7 @@ interface Viaje {
 }
 
 export default function Viajes() {
+  useRegisterPushNotifications(); // Register push notifications
   const { userName, user } = useAuth();
   const { viajes, obtenerPuntosPorEstado,
     actualizarEstadoPunto,  obtenerPuntosPorEstadoYEstadoViaje  } = useViajes();

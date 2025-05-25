@@ -6,9 +6,12 @@ import {
   signOut,
   User,
 } from "firebase/auth";
-import { auth, db, storage } from "../../utils/FirebaseConfig";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, arrayUnion } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import * as Notifications from "expo-notifications";
+import { Platform } from "react-native";
+
+import { auth, db, storage, firebaseConfig } from "../../utils/FirebaseConfig";
 
 interface Car {
   plate: string | null;
@@ -41,7 +44,6 @@ const AuthContext = createContext<AuthContextProps>({} as AuthContextProps);
 
 export const useAuth = () => useContext(AuthContext);
 
-// Función para subir imagen a Firebase Storage y obtener URL pública
 const uploadImageToStorage = async (uri: string, folder: string, id: string) => {
   try {
     const response = await fetch(uri);
@@ -70,6 +72,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [profilePhotoURL, setProfilePhotoURL] = useState<string | null>(null);
   const [car, setCar] = useState<Car | null>(null);
 
+  const registerExpoPushToken = async (userUid: string | null) => {
+    if (Platform.OS === "web" || !userUid) {
+      return;
+    }
+
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+
+    if (existingStatus !== "granted") {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+
+    if (finalStatus !== "granted") {
+      console.log("Permiso para notificaciones push no concedido");
+      return;
+    }
+
+    try {
+     const tokenData = await Notifications.getExpoPushTokenAsync();
+      const token = tokenData.data;
+      console.log("Token Expo Push obtenido:", token);
+
+      const userRef = doc(db, "users", userUid);
+      await updateDoc(userRef, {
+        expoPushTokens: arrayUnion(token),
+      });
+    } catch (error) {
+      console.error("Error registrando token Expo Push:", error);
+    }
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
@@ -82,6 +116,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           setUserRole(data?.role || null);
           setProfilePhotoURL(data?.profilePhotoURL || null);
           setCar(data?.car || null);
+
+          await registerExpoPushToken(currentUser.uid);
         }
       } else {
         setUserName(null);
@@ -115,7 +151,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       );
       const firebaseUser = userCredential.user;
 
-      // Subir foto de perfil (si hay URI y no es la URL por defecto)
       let uploadedProfilePhotoURL = "";
       if (
         profilePhotoURI &&
@@ -130,7 +165,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         uploadedProfilePhotoURL = profilePhotoURI || "";
       }
 
-      // Subir foto del carro si es conductor y tiene foto que no es URL ya subida
       let uploadedCarPhotoURL = "";
       if (
         role === "Conductor" &&
@@ -147,7 +181,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         uploadedCarPhotoURL = car?.photoURL || "";
       }
 
-      // Guardar usuario en Firestore
       await setDoc(doc(db, "users", firebaseUser.uid), {
         name,
         email,
@@ -160,12 +193,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
             : null,
       });
 
-      // Actualizar estados locales
       setUserName(name);
       setUserEmail(email);
       setUserRole(role);
       setProfilePhotoURL(uploadedProfilePhotoURL);
       setCar(role === "Conductor" ? car : null);
+
+      await registerExpoPushToken(firebaseUser.uid);
     } catch (error) {
       console.error("Error al registrar usuario:", error);
       throw error;
