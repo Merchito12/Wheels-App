@@ -17,7 +17,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialIcons } from "@expo/vector-icons";
 import colors from "../../styles/Colors";
-import { Redirect, router } from "expo-router";
+import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "../../context/authContext/AuthContext";
 import { ActionSheetIOS } from "react-native";
@@ -42,21 +42,15 @@ const Loader = () => (
 
 export function Register() {
   const [step, setStep] = useState(0);
-  const [redirect, setRedirect] = useState(false);
   const progress = useState(new Animated.Value(0))[0];
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [role, setRole] = useState("Usuario");
+  const [role, setRole] = useState<"Usuario" | "Conductor">("Usuario");
   const [isLoading, setIsLoading] = useState(false);
-  const [isRedirecting, setIsRedirecting] = useState(false);
 
-  // Foto perfil
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
-  // Modal Android
   const [modalVisible, setModalVisible] = useState(false);
-
-  // Foto vehículo
   const [image, setImage] = useState<string | null>(null);
 
   const [userName, setUserName] = useState("");
@@ -69,190 +63,136 @@ export function Register() {
 
   const { signUp } = useAuth();
 
-  // Selector de foto perfil galería
+  // Determina cuántos pasos hay: 2 para conductor, 1 para usuario
+  const maxStep = role === "Conductor" ? 2 : 1;
+
+  // Funciones de imagen igual que antes...
   const pickProfilePhoto = async () => {
-    const permissionResult =
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permissionResult.granted) {
-      Alert.alert(
-        "Permiso denegado",
-        "Es necesario permiso para acceder a la galería."
-      );
-      return;
-    }
+    const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!granted) return Alert.alert("Permiso denegado", "Necesitas permiso a la galería.");
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [4, 4],
       quality: 1,
     });
-    if (!result.canceled && result.assets.length > 0) {
+    if (!result.canceled && result.assets.length) {
       setProfilePhoto(result.assets[0].uri);
     }
   };
-
-  // Selector de foto perfil cámara
   const takeProfilePhoto = async () => {
-    const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permissionResult.granted) {
-      Alert.alert(
-        "Permiso denegado",
-        "Es necesario permiso para acceder a la cámara."
-      );
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      aspect: [4, 4],
-      quality: 1,
-    });
-    if (!result.canceled && result.assets.length > 0) {
+    const { granted } = await ImagePicker.requestCameraPermissionsAsync();
+    if (!granted) return Alert.alert("Permiso denegado", "Necesitas permiso a la cámara.");
+    const result = await ImagePicker.launchCameraAsync({ allowsEditing: true, aspect: [4, 4], quality: 1 });
+    if (!result.canceled && result.assets.length) {
       setProfilePhoto(result.assets[0].uri);
     }
   };
-
-  // Mostrar opciones para cambiar foto perfil
   const showPhotoOptions = () => {
     if (Platform.OS === "ios") {
       ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: ["Cancelar", "Seleccionar de la Galería", "Tomar Foto"],
-          cancelButtonIndex: 0,
-        },
-        (buttonIndex) => {
-          if (buttonIndex === 1) pickProfilePhoto();
-          else if (buttonIndex === 2) takeProfilePhoto();
-        }
+        { options: ["Cancelar","Galería","Cámara"], cancelButtonIndex: 0 },
+        i => { if(i===1) pickProfilePhoto(); if(i===2) takeProfilePhoto(); }
       );
     } else {
       setModalVisible(true);
     }
   };
-
-  // Selector foto vehículo (igual que antes)
   const handleImagePicker = async () => {
-    const permissionResult =
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permissionResult.granted) {
-      Alert.alert(
-        "Permiso denegado",
-        "Es necesario permiso para acceder a la galería."
-      );
-      return;
-    }
+    const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!granted) return Alert.alert("Permiso denegado", "Necesitas permiso a la galería.");
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [4, 3],
       quality: 1,
     });
-    if (!result.canceled && result.assets.length > 0) {
+    if (!result.canceled && result.assets.length) {
       setImage(result.assets[0].uri);
-      await AsyncStorage.setItem("localPhotoUri", result.assets[0].uri);
+      await AsyncStorage.setItem("localCarPhotoUri", result.assets[0].uri);
+    }
+  };
+
+  // Esta función hace signUp + redirección inmediata según role
+  const finalizeRegistration = async () => {
+    setIsLoading(true);
+    try {
+      const profilePhotoURI = profilePhoto || DEFAULT_PROFILE_PHOTO;
+      const carData: Car =
+        role === "Conductor"
+          ? {
+              plate,
+              color,
+              brand,
+              seats: parseInt(seats, 10),
+              photoURL: image || null,
+            }
+          : { plate: null, color: null, brand: null, seats: null, photoURL: null };
+
+      await signUp(userEmail, password, userName, profilePhotoURI, carData, role);
+
+     
+      router.replace("/auth");
+      
+    } catch (error) {
+      console.error("Error al registrar:", error);
+      Alert.alert("Error", "No se pudo completar el registro.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleNext = async () => {
-    if (step === 2) {
-      try {
-        setIsLoading(true);
-
-        if (!userName || !userEmail || !password) {
-          Alert.alert("Error", "Por favor completa todos los campos de usuario.");
-          setIsLoading(false);
-          return;
-        }
-
-        if (!termsAccepted) {
-          Alert.alert("Error", "Debes aceptar los términos y condiciones.");
-          setIsLoading(false);
-          return;
-        }
-
-        if (role === "Conductor") {
-          if (!plate || !color || !brand || !seats) {
-            Alert.alert(
-              "Error",
-              "Todos los campos del vehículo son obligatorios."
-            );
-            setIsLoading(false);
-            return;
-          }
-        }
-
-        const carData: Car = {
-          plate: plate || null,
-          color: color || null,
-          brand: brand || null,
-          seats: seats ? parseInt(seats, 10) : null,
-          photoURL: image || null,
-        };
-
-        const profilePhotoURI = profilePhoto || DEFAULT_PROFILE_PHOTO;
-
-        await signUp(userEmail, password, userName, profilePhotoURI, carData, role);
-
-        setIsRedirecting(true);
-      } catch (error) {
-        console.error("Error al registrar el usuario:", error);
-        Alert.alert("Error", "No se pudo registrar el usuario.");
-      } finally {
-        setIsLoading(false);
+    // Si ya está en el último paso, validamos y finalizamos
+    if (step === maxStep) {
+      if (!userName || !userEmail || !password) {
+        return Alert.alert("Error", "Completa todos los campos de usuario.");
       }
-    } else {
-      setStep((prev) => prev + 1);
-      Animated.timing(progress, {
-        toValue: (step + 1) * 33,
-        duration: 500,
-        useNativeDriver: false,
-      }).start();
+      if (!termsAccepted) {
+        return Alert.alert("Error", "Debes aceptar términos y condiciones.");
+      }
+      if (role === "Conductor" && (!plate||!brand||!color||!seats)) {
+        return Alert.alert("Error", "Completa todos los campos del vehículo.");
+      }
+      return finalizeRegistration();
     }
+
+    // Validaciones en step 0 (datos básicos)
+    if (step === 0) {
+      if (!userName||!userEmail||!password) {
+        return Alert.alert("Error", "Completa todos los campos de usuario.");
+      }
+      if (!termsAccepted) {
+        return Alert.alert("Error", "Debes aceptar términos y condiciones.");
+      }
+    }
+
+    // Avanza de paso
+    const next = step + 1;
+    setStep(next);
+    Animated.timing(progress, {
+      toValue: next,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
   };
 
   const handleBack = () => {
     if (step > 0) {
-      setStep(step - 1);
+      const prev = step - 1;
+      setStep(prev);
       Animated.timing(progress, {
-        toValue: (step - 1) * 33,
-        duration: 500,
+        toValue: prev,
+        duration: 300,
         useNativeDriver: false,
       }).start();
     }
   };
 
-  const handleFocus = (inputName: string) => {
-    setFocusedInput(inputName);
-  };
-
-  const handleBlur = () => {
-    setFocusedInput(null);
-  };
-
-  const handleTermsToggle = () => {
-    setTermsAccepted(!termsAccepted);
-  };
-
-  useEffect(() => {
-    if (isRedirecting) {
-      const timeout = setTimeout(() => {
-        if (role === "Conductor") {
-          router.replace("/conductor");
-        } else {
-          router.replace("/usuario");
-        }
-      }, 1000);
-      return () => clearTimeout(timeout);
-    }
-  }, [isRedirecting, role]);
-
-  if (redirect) {
-    return <Redirect href="./auth" />;
-  }
-
   const stepTexts = [
     { title: "Registrar", subtitle: "Crea una cuenta" },
-    { title: "Personaliza tu experiencia", subtitle: "Escoge tu rol" },
-    { title: "Registra tu carro", subtitle: "Ingresa la información del vehículo" },
+    { title: "Elige tu rol", subtitle: "Usuario o Conductor" },
+    { title: "Datos del carro", subtitle: "Completa tu info" },
   ];
 
   return (
@@ -261,6 +201,7 @@ export function Register() {
         <Loader />
       ) : (
         <>
+          {/* Header y barra de progreso */}
           <View style={styles.fixedTop}>
             <View style={styles.progressBarContainer}>
               <Animated.View
@@ -268,8 +209,8 @@ export function Register() {
                   styles.progressBar,
                   {
                     width: progress.interpolate({
-                      inputRange: [0, 33, 66],
-                      outputRange: ["0%", "33%", "100%"],
+                      inputRange: [0, maxStep],
+                      outputRange: ["0%", "100%"],
                     }),
                   },
                 ]}
@@ -279,258 +220,194 @@ export function Register() {
             <Text style={styles.fixedSubtitle}>{stepTexts[step].subtitle}</Text>
           </View>
 
+          {/* Formulario */}
           <ScrollView contentContainerStyle={styles.formContainer}>
+            {/* Paso 0: datos usuario */}
             {step === 0 && (
               <View style={styles.form}>
-                <View style={{ alignItems: "center", marginBottom: 30, marginTop: 10 }}>
+                <View style={styles.centered}>
                   <TouchableOpacity onPress={showPhotoOptions}>
                     <Image
                       source={{ uri: profilePhoto || DEFAULT_PROFILE_PHOTO }}
                       style={styles.profileImage}
                     />
                   </TouchableOpacity>
-                  <Text style={{ marginTop: 8, color: colors.darkGrey }}>
-                    Toca la foto para cambiarla
-                  </Text>
+                  <Text style={{ color: colors.darkGrey }}>Toca para cambiar</Text>
                 </View>
-
                 <Text style={styles.inputLabel}>Nombre</Text>
                 <TextInput
-                  style={[styles.input, focusedInput === "name" && styles.inputFocused]}
-                  placeholder="Maria Perez"
+                  style={[styles.input, focusedInput==="name"&&styles.inputFocused]}
+                  placeholder="Ej. María Pérez"
                   placeholderTextColor={colors.grey}
                   value={userName}
                   onChangeText={setUserName}
-                  onFocus={() => handleFocus("name")}
-                  onBlur={handleBlur}
+                  onFocus={()=>setFocusedInput("name")}
+                  onBlur={()=>setFocusedInput(null)}
                 />
-
-                <Text style={styles.inputLabel}>Correo Electrónico</Text>
+                <Text style={styles.inputLabel}>Correo</Text>
                 <TextInput
-                  style={[styles.input, focusedInput === "email" && styles.inputFocused]}
-                  placeholder="nombre@email.com"
+                  style={[styles.input, focusedInput==="email"&&styles.inputFocused]}
+                  placeholder="email@dominio.com"
                   placeholderTextColor={colors.grey}
                   value={userEmail}
                   onChangeText={setUserEmail}
-                  onFocus={() => handleFocus("email")}
-                  onBlur={handleBlur}
+                  onFocus={()=>setFocusedInput("email")}
+                  onBlur={()=>setFocusedInput(null)}
                   keyboardType="email-address"
                   autoCapitalize="none"
                 />
-
                 <Text style={styles.inputLabel}>Contraseña</Text>
                 <TextInput
-                  style={[styles.input, focusedInput === "password" && styles.inputFocused]}
-                  placeholder="Crea una contraseña"
-                  secureTextEntry={!showPassword}
+                  style={[styles.input, focusedInput==="password"&&styles.inputFocused]}
+                  placeholder="Contraseña"
                   placeholderTextColor={colors.grey}
+                  secureTextEntry={!showPassword}
                   value={password}
                   onChangeText={setPassword}
-                  onFocus={() => handleFocus("password")}
-                  onBlur={handleBlur}
+                  onFocus={()=>setFocusedInput("password")}
+                  onBlur={()=>setFocusedInput(null)}
                 />
-
                 <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
                   style={styles.eyeIcon}
+                  onPress={()=>setShowPassword(v=>!v)}
                 >
                   <MaterialIcons
-                    name={showPassword ? "visibility-off" : "visibility"}
+                    name={showPassword?"visibility-off":"visibility"}
                     size={24}
                     color={colors.grey}
                   />
                 </TouchableOpacity>
 
-                {/* Checkbox términos */}
                 <View style={styles.checkboxContainer}>
                   <TouchableOpacity
-                    onPress={handleTermsToggle}
-                    style={[
-                      styles.checkbox,
-                      termsAccepted && styles.checkboxChecked,
-                    ]}
+                    style={[styles.checkbox, termsAccepted&&styles.checkboxChecked]}
+                    onPress={()=>setTermsAccepted(v=>!v)}
                   >
-                    {termsAccepted && (
-                      <MaterialIcons name="check" size={16} color={colors.white} />
+                    {termsAccepted&&(
+                      <MaterialIcons name="check" size={16} color={colors.white}/>
                     )}
                   </TouchableOpacity>
                   <Text style={styles.checkboxText}>
-                    Leí los{" "}
-                    <Text style={styles.termsText}>Términos y Condiciones</Text> y la{" "}
-                    <Text style={styles.termsText}>Política de Privacidad</Text>.
+                    Acepto{" "}
+                    <Text style={styles.termsText}>Términos y Condiciones</Text>
                   </Text>
                 </View>
               </View>
             )}
 
-            {step === 1 && (
+            {/* Paso 1: selección de rol */}
+            {step===1&&(
               <View style={styles.roleSelectorContainer}>
                 <TouchableOpacity
-                  style={[
-                    styles.roleButton,
-                    role === "Usuario" && styles.roleButtonSelected,
-                  ]}
-                  onPress={() => setRole("Usuario")}
+                  style={[styles.roleButton, role==="Usuario"&&styles.roleButtonSelected]}
+                  onPress={()=>setRole("Usuario")}
                 >
-                  <Text
-                    style={[
-                      styles.roleButtonText,
-                      role === "Usuario" && styles.roleButtonTextSelected,
-                    ]}
-                  >
+                  <Text style={[styles.roleButtonText, role==="Usuario"&&styles.roleButtonTextSelected]}>
                     Usuario
                   </Text>
-                  {role === "Usuario" && (
-                    <MaterialIcons name="check" size={24} color={colors.blue} />
-                  )}
+                  {role==="Usuario"&&<MaterialIcons name="check" size={24} color={colors.blue}/>}
                 </TouchableOpacity>
-
                 <TouchableOpacity
-                  style={[
-                    styles.roleButton,
-                    role === "Conductor" && styles.roleButtonSelected,
-                  ]}
-                  onPress={() => setRole("Conductor")}
+                  style={[styles.roleButton, role==="Conductor"&&styles.roleButtonSelected]}
+                  onPress={()=>setRole("Conductor")}
                 >
-                  <Text
-                    style={[
-                      styles.roleButtonText,
-                      role === "Conductor" && styles.roleButtonTextSelected,
-                    ]}
-                  >
+                  <Text style={[styles.roleButtonText, role==="Conductor"&&styles.roleButtonTextSelected]}>
                     Conductor
                   </Text>
-                  {role === "Conductor" && (
-                    <MaterialIcons name="check" size={24} color={colors.blue} />
-                  )}
+                  {role==="Conductor"&&<MaterialIcons name="check" size={24} color={colors.blue}/>}
                 </TouchableOpacity>
               </View>
             )}
 
-            {step === 2 && role === "Conductor" && (
+            {/* Paso 2: datos del carro (solo conductor) */}
+            {step===2&&role==="Conductor"&&(
               <View style={styles.form}>
                 <Text style={styles.inputLabel}>Placa</Text>
                 <TextInput
-                  style={[styles.input, focusedInput === "plate" && styles.inputFocused]}
+                  style={[styles.input, focusedInput==="plate"&&styles.inputFocused]}
                   placeholder="ABC123"
                   placeholderTextColor={colors.grey}
-                  onFocus={() => handleFocus("plate")}
-                  onBlur={handleBlur}
                   value={plate}
                   onChangeText={setPlate}
+                  onFocus={()=>setFocusedInput("plate")}
+                  onBlur={()=>setFocusedInput(null)}
                 />
-
-                <Text style={styles.inputLabel}>Marca del Carro</Text>
+                <Text style={styles.inputLabel}>Marca</Text>
                 <TextInput
-                  style={[styles.input, focusedInput === "brand" && styles.inputFocused]}
+                  style={[styles.input, focusedInput==="brand"&&styles.inputFocused]}
                   placeholder="Toyota"
                   placeholderTextColor={colors.grey}
-                  onFocus={() => handleFocus("brand")}
-                  onBlur={handleBlur}
                   value={brand}
                   onChangeText={setBrand}
+                  onFocus={()=>setFocusedInput("brand")}
+                  onBlur={()=>setFocusedInput(null)}
                 />
-
-                <Text style={styles.inputLabel}>Color del Carro</Text>
+                <Text style={styles.inputLabel}>Color</Text>
                 <TextInput
-                  style={[styles.input, focusedInput === "color" && styles.inputFocused]}
-                  placeholder="Red"
+                  style={[styles.input, focusedInput==="color"&&styles.inputFocused]}
+                  placeholder="Rojo"
                   placeholderTextColor={colors.grey}
-                  onFocus={() => handleFocus("color")}
-                  onBlur={handleBlur}
                   value={color}
                   onChangeText={setColor}
+                  onFocus={()=>setFocusedInput("color")}
+                  onBlur={()=>setFocusedInput(null)}
                 />
-
-                <Text style={styles.inputLabel}>Cantidad de Asientos Disponibles</Text>
+                <Text style={styles.inputLabel}>Asientos</Text>
                 <TextInput
-                  style={[styles.input, focusedInput === "seats" && styles.inputFocused]}
+                  style={[styles.input, focusedInput==="seats"&&styles.inputFocused]}
                   placeholder="4"
                   placeholderTextColor={colors.grey}
-                  onFocus={() => handleFocus("seats")}
-                  onBlur={handleBlur}
                   value={seats}
                   onChangeText={setSeats}
+                  onFocus={()=>setFocusedInput("seats")}
+                  onBlur={()=>setFocusedInput(null)}
                   keyboardType="numeric"
                 />
-
-                <View style={styles.form}>
-                  <Text style={styles.inputLabel}>Subir Foto del Vehículo</Text>
-
-                  <TouchableOpacity
-                    style={styles.uploadButton}
-                    onPress={handleImagePicker}
-                  >
-                    <View style={styles.uploadButtonContent}>
-                      <MaterialIcons name="photo-camera" size={24} color={colors.white} />
-                      <Text style={styles.uploadButtonText}>Subir Foto del Vehículo</Text>
-                    </View>
-                  </TouchableOpacity>
-
-                  {image && (
-                    <Image source={{ uri: image }} style={styles.selectedImage} />
-                  )}
-                </View>
+                <Text style={styles.inputLabel}>Foto del Vehículo</Text>
+                <TouchableOpacity style={styles.uploadButton} onPress={handleImagePicker}>
+                  <View style={styles.uploadButtonContent}>
+                    <MaterialIcons name="photo-camera" size={24} color={colors.white}/>
+                    <Text style={styles.uploadButtonText}>Subir Foto</Text>
+                  </View>
+                </TouchableOpacity>
+                {image&&<Image source={{uri:image}} style={styles.selectedImage}/>}
               </View>
             )}
           </ScrollView>
 
+          {/* Botones Inferiores */}
           <View style={styles.buttonsContainer}>
-            {step === 0 && (
-              <TouchableOpacity
-                onPress={() => router.push("./")}
-                style={[styles.mainButton, styles.backButton]}
-              >
-                <Text style={styles.notAbleButtonText}>Iniciar Sesión</Text>
-              </TouchableOpacity>
-            )}
-            {step > 0 && (
-              <TouchableOpacity onPress={handleBack} style={[styles.ableButton]}>
+            {step>0&&(
+              <TouchableOpacity style={styles.ableButton} onPress={handleBack}>
                 <Text style={styles.buttonText}>Anterior</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity onPress={handleNext} style={styles.mainButton}>
+            <TouchableOpacity style={styles.mainButton} onPress={handleNext}>
               <Text style={styles.mainButtonText}>
-                {step === 2 ? "Finalizar" : "Siguiente"}
+                {step===maxStep?"Finalizar":"Siguiente"}
               </Text>
             </TouchableOpacity>
           </View>
 
-          {/* Modal Android para elegir foto */}
-          {Platform.OS === "android" && (
-            <Modal
-              transparent={true}
-              visible={modalVisible}
-              animationType="fade"
-              onRequestClose={() => setModalVisible(false)}
-            >
-              <TouchableWithoutFeedback onPress={() => setModalVisible(false)}>
-                <View style={styles.modalOverlay} />
+          {/* Modal Android para foto */}
+          {Platform.OS==="android"&&(
+            <Modal transparent visible={modalVisible} animationType="fade">
+              <TouchableWithoutFeedback onPress={()=>setModalVisible(false)}>
+                <View style={styles.modalOverlay}/>
               </TouchableWithoutFeedback>
               <View style={styles.modalContainer}>
-                <TouchableOpacity
-                  style={styles.modalOption}
-                  onPress={() => {
-                    pickProfilePhoto();
-                    setModalVisible(false);
-                  }}
-                >
-                  <Text style={styles.modalOptionText}>Seleccionar de la Galería</Text>
+                <TouchableOpacity style={styles.modalOption} onPress={()=>{
+                  pickProfilePhoto(); setModalVisible(false);
+                }}>
+                  <Text style={styles.modalOptionText}>Galería</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.modalOption}
-                  onPress={() => {
-                    takeProfilePhoto();
-                    setModalVisible(false);
-                  }}
-                >
-                  <Text style={styles.modalOptionText}>Tomar Foto</Text>
+                <TouchableOpacity style={styles.modalOption} onPress={()=>{
+                  takeProfilePhoto(); setModalVisible(false);
+                }}>
+                  <Text style={styles.modalOptionText}>Cámara</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.modalOption, { borderTopWidth: 1, borderColor: "#ccc" }]}
-                  onPress={() => setModalVisible(false)}
-                >
-                  <Text style={[styles.modalOptionText, { color: "red" }]}>Cancelar</Text>
+                <TouchableOpacity style={[styles.modalOption,{borderTopWidth:1,borderColor:"#ccc"}]} onPress={()=>setModalVisible(false)}>
+                  <Text style={[styles.modalOptionText,{color:"red"}]}>Cancelar</Text>
                 </TouchableOpacity>
               </View>
             </Modal>
@@ -541,242 +418,46 @@ export function Register() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingHorizontal: 30,
-    backgroundColor: colors.white,
-  },
-  fixedTop: {
-    width: "100%",
-    paddingTop: 20,
-    top: 60,
-    zIndex: 1,
-    marginBottom: 20,
-  },
-  progressBarContainer: {
-    width: "100%",
-    height: 10,
-    backgroundColor: "#EAEAEA",
-    borderRadius: 5,
-    marginBottom: 10,
-  },
-  progressBar: {
-    height: "100%",
-    backgroundColor: colors.blue,
-    borderRadius: 5,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: colors.black,
-    marginTop: 10,
-    marginBottom: 10,
-    textAlign: "left",
-  },
-  fixedSubtitle: {
-    fontSize: 16,
-    fontWeight: "400",
-    color: "#9E9E9E",
-    marginBottom: 30,
-    marginTop: 0,
-    textAlign: "left",
-  },
-  formContainer: {
-    marginTop: 40,
-  },
-  form: {
-    width: "100%",
-    marginBottom: 30,
-  },
-  inputLabel: {
-    fontSize: 14,
-    color: colors.darkGrey,
-    marginBottom: 5,
-    textAlign: "left",
-  },
-  input: {
-    width: "100%",
-    backgroundColor: "#F8F8F8",
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    marginBottom: 10,
-    color: colors.black,
-    borderWidth: 1,
-    borderColor: "#EAEAEA",
-  },
-  inputFocused: {
-    borderColor: colors.blue,
-    borderWidth: 2,
-  },
-  uploadButton: {
-    backgroundColor: "#EAEAEA",
-    padding: 16,
-    marginBottom: 20,
-    borderRadius: 12,
-    textAlign: "center",
-  },
-  buttonsContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 30,
-  },
-  mainButton: {
-    backgroundColor: colors.blue,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-    width: "48%",
-    justifyContent: "center",
-  },
-  ableButton: {
-    backgroundColor: colors.white,
-    paddingVertical: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.blue,
-    alignItems: "center",
-    width: "48%",
-    justifyContent: "center",
-  },
-  notAbleButtonText: {
-    color: colors.white,
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  mainButtonText: {
-    color: colors.white,
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  buttonText: {
-    color: colors.blue,
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  backButton: {
-    backgroundColor: "#EAEAEA",
-  },
-  checkboxContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  checkbox: {
-    marginTop: 30,
-    width: 20,
-    height: 20,
-    borderWidth: 1,
-    borderColor: colors.blue,
-    marginRight: 10,
-    borderRadius: 3,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  checkboxChecked: {
-    backgroundColor: colors.blue,
-  },
-  checkboxText: {
-    fontSize: 14,
-    marginTop: 30,
-  },
-  termsText: {
-    color: colors.blue,
-    fontWeight: "600",
-    textDecorationLine: "underline",
-  },
-  eyeIcon: {
-    position: "absolute",
-    right: 16,
-    bottom: 98,
-  },
-  loaderContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: colors.white,
-  },
-  loaderText: {
-    fontSize: 16,
-    color: colors.black,
-    marginTop: 20,
-  },
-  uploadButtonContent: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  uploadButtonText: {
-    marginLeft: 10,
-    fontSize: 16,
-    color: colors.blue,
-  },
-  selectedImage: {
-    width: 150,
-    height: 150,
-    borderRadius: 10,
-    marginTop: 10,
-    alignSelf: "center",
-  },
-  profileImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 2,
-    borderColor: colors.blue,
-  },
-  roleSelectorContainer: {
-    justifyContent: "space-between",
-    width: "100%",
-    marginBottom: 20,
-  },
-  roleButton: {
-    width: "100%",
-    backgroundColor: "#F8F8F8",
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    marginBottom: 10,
-    color: colors.black,
-    borderWidth: 1,
-    borderColor: "#EAEAEA",
-  },
-  roleButtonSelected: {
-    backgroundColor: colors.lightBlue,
-    borderColor: colors.blue,
-  },
-  roleButtonText: {
-    color: colors.darkGrey,
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  roleButtonTextSelected: {
-    color: colors.blue,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-  },
-  modalContainer: {
-    position: "absolute",
-    bottom: 0,
-    width: "100%",
-    backgroundColor: colors.white,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    paddingBottom: 20,
-  },
-  modalOption: {
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderColor: "#eee",
-  },
-  modalOptionText: {
-    fontSize: 18,
-    color: colors.black,
-    textAlign: "center",
-  },
-});
-
 export default Register;
+
+const styles = StyleSheet.create({
+  container: { flex:1, paddingHorizontal:30, backgroundColor:colors.white },
+  fixedTop:{ marginTop:60, marginBottom:20 },
+  progressBarContainer:{ width:"100%", height:10, backgroundColor:"#EAEAEA", borderRadius:5, overflow:"hidden", marginBottom:10 },
+  progressBar:{ height:"100%", backgroundColor:colors.blue },
+  title:{ fontSize:20, fontWeight:"600", color:colors.black, marginBottom:4 },
+  fixedSubtitle:{ fontSize:16, color:colors.darkGrey, marginBottom:20 },
+  formContainer:{ paddingBottom:40 },
+  form:{ marginBottom:30 },
+  centered:{ alignItems:"center", marginVertical:20 },
+  profileImage:{ width:120, height:120, borderRadius:60, borderWidth:2, borderColor:colors.blue },
+  inputLabel:{ fontSize:14, color:colors.darkGrey, marginBottom:5 },
+  input:{ backgroundColor:"#F8F8F8", borderRadius:12, padding:12, fontSize:16, marginBottom:10, borderWidth:1, borderColor:"#EAEAEA" },
+  inputFocused:{ borderColor:colors.blue, borderWidth:2 },
+  eyeIcon:{ position:"absolute", right:16, top:162 },
+  checkboxContainer:{ flexDirection:"row", alignItems:"center", marginBottom:10 },
+  checkbox:{ width:20, height:20, borderWidth:1, borderColor:colors.blue, marginRight:8, justifyContent:"center", alignItems:"center", borderRadius:3 },
+  checkboxChecked:{ backgroundColor:colors.blue },
+  checkboxText:{ fontSize:14 },
+  termsText:{ color:colors.blue, textDecorationLine:"underline" },
+  roleSelectorContainer:{ marginBottom:30 },
+  roleButton:{ padding:16, borderRadius:12, borderWidth:1, borderColor:"#EAEAEA", backgroundColor:"#F8F8F8", marginBottom:10, flexDirection:"row", justifyContent:"space-between", alignItems:"center" },
+  roleButtonSelected:{ backgroundColor:colors.lightBlue, borderColor:colors.blue },
+  roleButtonText:{ fontSize:16, color:colors.darkGrey },
+  roleButtonTextSelected:{ color:colors.blue },
+  uploadButton:{ backgroundColor:colors.blue, borderRadius:12, padding:14, alignItems:"center", marginTop:8 },
+  uploadButtonContent:{ flexDirection:"row", alignItems:"center" },
+  uploadButtonText:{ color:colors.white, marginLeft:8 },
+  selectedImage:{ width:150, height:100, borderRadius:8, marginTop:10 },
+  buttonsContainer:{ flexDirection:"row", justifyContent:"space-between", paddingVertical:16 },
+  ableButton:{ backgroundColor:"#EAEAEA", padding:14, borderRadius:12, flex:1, marginRight:8, alignItems:"center" },
+  buttonText:{ color:colors.black, fontSize:16 },
+  mainButton:{ backgroundColor:colors.blue, padding:14, borderRadius:12, flex:1, marginLeft:8, alignItems:"center" },
+  mainButtonText:{ color:colors.white, fontSize:16 },
+  modalOverlay:{ flex:1, backgroundColor:"rgba(0,0,0,0.4)" },
+  modalContainer:{ backgroundColor:colors.white, paddingVertical:12, borderTopLeftRadius:12, borderTopRightRadius:12 },
+  modalOption:{ padding:14, alignItems:"center" },
+  modalOptionText:{ fontSize:18 },
+  loaderContainer:{ flex:1, justifyContent:"center", alignItems:"center" },
+  loaderText:{ marginTop:12, fontSize:16, color:colors.black },
+});

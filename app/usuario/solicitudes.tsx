@@ -7,24 +7,9 @@ import {
   ScrollView,
   ActivityIndicator,
 } from "react-native";
+import { useCliente, EstadoPunto, Viaje, Punto } from "../../context/viajeContext/viajeClienteContext";
 import colors from "@/styles/Colors";
-import { useCliente } from "../../context/viajeContext/viajeClienteContext";
-
-interface Punto {
-  estado: string;
-  fecha?: string;
-  hora?: string;
-  direccion?: string;
-  sector?: string;
-}
-
-interface Viaje {
-  id: string;
-  direccion: string;
-  fecha: string;
-  horaSalida: string;
-  puntos: Punto[];
-}
+import { Ionicons } from "@expo/vector-icons";
 
 interface PuntoConViaje {
   viaje: Viaje;
@@ -32,101 +17,102 @@ interface PuntoConViaje {
 }
 
 export default function Solicitudes() {
-  const [activeTab, setActiveTab] = useState<
-    "todos" | "aceptados" | "pendientes" | "negados"
-  >("todos");
-  const [puntos, setPuntos] = useState<PuntoConViaje[]>([]);
+  const [activeTab, setActiveTab] = useState<EstadoPunto | "todos">("todos");
+  const [puntosMostrar, setPuntosMostrar] = useState<PuntoConViaje[]>([]);
   const [loading, setLoading] = useState(false);
 
   const {
-    obtenerViajesPorEstado,
     obtenerViajesPorEstadoPunto,
   } = useCliente();
 
-  // Mapeo para convertir "aceptados" -> "aceptado", etc.
-  const estadoPuntoMap: Record<string, string> = {
-    aceptados: "aceptado",
-    pendientes: "pendiente",
-    negados: "negado",
-  };
-
   useEffect(() => {
-    async function cargarPuntos() {
+    async function fetchData() {
       setLoading(true);
       try {
         if (activeTab === "todos") {
-          // Traer todos los viajes con estado "por iniciar"
-          const viajes = await obtenerViajesPorEstado("por iniciar");
-          const todosPuntos: PuntoConViaje[] = [];
-          viajes.forEach((viaje) => {
-            viaje.puntos?.forEach((punto) => {
-              todosPuntos.push({ viaje, punto });
-            });
-          });
-          setPuntos(todosPuntos);
+          // Obtener viajes con puntos en cualquier estado pendiente, aceptado o negado
+          const pendientes = await obtenerViajesPorEstadoPunto("pendiente");
+          const aceptados = await obtenerViajesPorEstadoPunto("aceptado");
+          const negados = await obtenerViajesPorEstadoPunto("negado");
+
+          // Mapear a PuntoConViaje y unir todos
+          const mapPuntos = (viajes: Viaje[], estado: EstadoPunto) =>
+            viajes.flatMap((viaje) =>
+              viaje.puntos
+                .filter((p) => p.estado === estado)
+                .map((punto) => ({ viaje, punto }))
+            );
+
+          const todosPuntos = [
+            ...mapPuntos(pendientes, "pendiente"),
+            ...mapPuntos(aceptados, "aceptado"),
+            ...mapPuntos(negados, "negado"),
+          ];
+
+          setPuntosMostrar(todosPuntos);
         } else {
-          // Filtrar viajes con estado "por iniciar" y puntos con estado específico
-          const viajes = await obtenerViajesPorEstado("por iniciar");
-          const puntosFiltrados: PuntoConViaje[] = [];
-          viajes.forEach((viaje) => {
+          // Obtener viajes con puntos en el estado seleccionado
+          const viajes = await obtenerViajesPorEstadoPunto(activeTab as EstadoPunto);
+
+          // Mapear a PuntoConViaje filtrando solo los puntos del estado activo
+          const puntos = viajes.flatMap((viaje) =>
             viaje.puntos
-              ?.filter((p) => p.estado === estadoPuntoMap[activeTab])
-              .forEach((punto) => puntosFiltrados.push({ viaje, punto }));
-          });
-          setPuntos(puntosFiltrados);
+              .filter((p) => p.estado === activeTab)
+              .map((punto) => ({ viaje, punto }))
+          );
+          setPuntosMostrar(puntos);
         }
       } catch (error) {
-        console.error("Error cargando puntos:", error);
-        setPuntos([]);
+        console.error("Error al obtener solicitudes:", error);
       } finally {
         setLoading(false);
       }
     }
-    cargarPuntos();
-  }, [activeTab, obtenerViajesPorEstado]);
-
-  if (loading) {
-    return (
-      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
-        <ActivityIndicator size="large" color={colors.blue} />
-      </View>
-    );
-  }
+    fetchData();
+  }, [activeTab]);
 
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Solicitudes</Text>
 
-      {/* Tabs para filtrar por estado */}
-      <View style={styles.tabs}>
-        {["todos", "aceptados", "pendientes", "negados"].map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            style={[styles.tab, activeTab === tab ? styles.activeTab : null]}
-            onPress={() => setActiveTab(tab as any)}
-          >
-            <Text style={styles.tabText}>
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 70 }}>
+        <View style={styles.tabs}>
+          {["todos", "aceptado", "pendiente", "negado"].map((tab) => (
+            <TouchableOpacity
+              key={tab}
+              style={[styles.tab, activeTab === tab && styles.activeTab]}
+              onPress={() => setActiveTab(tab as any)}
+            >
+              <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </ScrollView>
 
       <ScrollView contentContainerStyle={styles.solicitudesList}>
-        {puntos.length === 0 ? (
+        {loading ? (
+          <ActivityIndicator size="large" color={colors.blue} style={{ marginTop: 20 }} />
+        ) : puntosMostrar.length === 0 ? (
           <Text style={{ textAlign: "center", marginTop: 20, color: "#999" }}>
             No hay solicitudes para mostrar
           </Text>
         ) : (
-          puntos.map(({ viaje, punto }, index) => (
-            <View key={`${viaje.id}-${index}`} style={styles.solicitudCard}>
-              <View style={styles.solicitudInfo}>
-                <Text style={styles.solicitudTitle}>Viaje: {viaje.direccion}</Text>
-                <Text style={styles.solicitudPrice}>Estado del viaje: por iniciar</Text>
-                <Text style={styles.solicitudDetails}>Estado del punto: {punto.estado}</Text>
-                <Text style={styles.solicitudDetails}>Fecha: {viaje.fecha || "N/A"}</Text>
-                <Text style={styles.solicitudDetails}>Hora: {viaje.horaSalida || "N/A"}</Text>
-                <Text style={styles.solicitudDetails}>Dirección del punto: {punto.direccion || "N/A"}</Text>
+          puntosMostrar.map(({ viaje, punto }, index) => (
+            <View key={`${viaje.id}-${index}`} style={styles.puntoCard}>
+              <View style={styles.puntoImagen}>
+                <Ionicons name="location-sharp" size={30} color="blue" />
+              </View>
+
+              <View style={{ flex: 1 }}>
+                <Text style={styles.puntoTitulo}>Viaje: {viaje.direccion}</Text>
+                <Text style={styles.puntoDireccion}>Dirección Solicitada: {punto.direccion || "Sin dirección"}</Text>
+                <Text style={styles.puntoDireccion}>Fecha: {viaje.fecha}</Text>
+                <Text style={styles.puntoDireccion}>Hora: {viaje.horaSalida}</Text>
+                <Text style={[styles.puntoDireccion, { color: colors.blue, fontWeight: "bold" }]}>
+                  {punto.estado.charAt(0).toUpperCase() + punto.estado.slice(1)}
+                </Text>
               </View>
             </View>
           ))
@@ -139,59 +125,64 @@ export default function Solicitudes() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 40,
     backgroundColor: "#fff",
+    paddingTop: 80,
+    paddingHorizontal: 20,
   },
   header: {
     fontSize: 28,
     fontWeight: "600",
-    marginBottom: 20,
     color: "#000",
+    marginBottom: 20,
   },
   tabs: {
     flexDirection: "row",
-    justifyContent: "space-around",
-    marginBottom: 20,
+    alignItems: "center",
   },
   tab: {
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 20,
-    borderRadius: 20,
     backgroundColor: "#EAEAEA",
-    marginHorizontal: 3,
+    borderRadius: 20,
+    marginHorizontal: 4,
   },
   activeTab: {
     backgroundColor: "#007BFF",
   },
   tabText: {
-    color: "#fff",
     fontWeight: "600",
+    fontSize: 14,
+    color: "#333",
+  },
+  activeTabText: {
+    color: colors.white,
+  },
+  puntoCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.lightGrey,
+    borderRadius: 12,
+    padding: 12,
+    paddingVertical: 20,
+    marginTop: 10,
+  },
+  puntoImagen: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    marginRight: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  puntoTitulo: {
+    fontWeight: "bold",
+    fontSize: 15,
+  },
+  puntoDireccion: {
+    fontSize: 13,
+    color: colors.grey,
   },
   solicitudesList: {
     paddingBottom: 100,
-  },
-  solicitudCard: {
-    backgroundColor: "#F0F8FF",
-    borderRadius: 10,
-    marginBottom: 15,
-    padding: 15,
-  },
-  solicitudInfo: {
-    paddingBottom: 10,
-  },
-  solicitudTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 5,
-  },
-  solicitudPrice: {
-    fontSize: 14,
-    marginBottom: 5,
-  },
-  solicitudDetails: {
-    fontSize: 12,
-    marginBottom: 5,
-    color: "#007BFF",
   },
 });

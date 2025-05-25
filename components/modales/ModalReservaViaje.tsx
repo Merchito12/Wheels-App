@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import colors from "../../styles/Colors";
 import { useCliente } from "../../context/viajeContext/viajeClienteContext"; // Ajusta ruta si es necesario
 import AutocompleteLugar from "../shared/Autocomplete";
+import MapComponent from "../shared/Map";
 
 interface ModalReservaViajeProps {
   visible: boolean;
@@ -159,11 +160,8 @@ export default function ModalReservaViaje({
                   </View>
                 </View>
 
-                <Image
-                  source={{ uri: viajeSeleccionado?.mapImageUri || "" }}
-                  style={styles.mapImage}
-                  resizeMode="cover"
-                />
+                <MapComponent viaje={viajeSeleccionado} puntosAceptados={viajeSeleccionado?.puntos.filter((p: { estado: string; }) => p.estado === "aceptado")} />
+
 
                 <TouchableOpacity
                   style={[styles.acceptButton, enviando && { opacity: 0.6 }]}
@@ -337,5 +335,11 @@ const styles = StyleSheet.create({
     height: 130,
     borderRadius: 10,
     marginBottom: 5,
+  },
+  mapContainer: {
+    width: '80%',  // O el ancho que necesites
+    height: 200,    // O la altura que definas para el mapa
+    borderRadius: 10,  // opcional, si quieres bordes redondeados
+    overflow: 'hidden', // Muy importante para que nada se salga del borde
   },
 });

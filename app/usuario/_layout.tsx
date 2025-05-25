@@ -41,20 +41,7 @@ export default function Tabslayout() {
           }}
         />
 
-        <Tabs.Screen
-          name="miViaje"
-          options={{
-            tabBarLabel: "",
-            tabBarIcon: ({ focused }) => (
-              <View style={styles.iconContainer}>
-                <Text style={[styles.textStyle, { color: focused ? colors.lightGrey : colors.white }]}>Mi{'\n'}Viaje</Text>
-              </View>
-            ),
-            tabBarIconStyle: styles.tabBarIconStyle,
-            tabBarStyle: styles.tabBarStyle,
-          }}
-        />
-
+        
         <Tabs.Screen
           name="historial"
           options={{

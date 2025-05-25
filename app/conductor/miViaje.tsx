@@ -4,12 +4,13 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
-  Modal,
-  Pressable,
   Alert,
   TextInput,
   Platform,
+  Dimensions,
+  Modal,
+  Pressable,
+  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -21,6 +22,8 @@ import { router } from "expo-router";
 import { scheduleAtDate } from "@/services/Notifications";
 import AutocompleteLugar from "@/components/shared/Autocomplete";
 
+import MapComponent from "@/components/shared/Map";
+
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -30,6 +33,10 @@ Notifications.setNotificationHandler({
     shouldSetBadge: false,
   }),
 });
+
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+const HEADER_HEIGHT = 60; // altura fija header
+const MAP_HEIGHT = (SCREEN_HEIGHT - HEADER_HEIGHT) / 2;
 
 const GOOGLE_API_KEY = "AIzaSyB0ex9gl00soXNo5bAY1yubQvWpJXr5HqY";
 
@@ -63,22 +70,24 @@ export default function CrearViaje() {
   const [tripDate, setTripDate] = useState(new Date());
   const [precio, setPrecio] = useState("---");
   const [origen, setOrigen] = useState("");
-  const [destino, setDestino] = useState("Universidad de la Sabana");
+  const [destino, setDestino] = useState("");
   const [isDestinoEditable, setIsDestinoEditable] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [distanciaKm, setDistanciaKm] = useState<number | null>(null);
   const [duracionMin, setDuracionMin] = useState<number | null>(null);
+
+  const origenMapa = origen.trim() || "Universidad de la Sabana";
+  const destinoMapa = destino.trim() || "Universidad de la Sabana";
+
   function formatearMilesConPuntos(num: number): string {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   }
-  
-  
 
   useEffect(() => {
     const calcularRutaYPrecio = async () => {
-      if (origen.trim() && destino.trim()) {
+      if (origenMapa && destinoMapa) {
         try {
-          const { distanciaKm, duracionMin } = await obtenerRuta(origen, destino);
+          const { distanciaKm, duracionMin } = await obtenerRuta(origenMapa, destinoMapa);
           setDistanciaKm(distanciaKm);
           setDuracionMin(duracionMin);
           const nuevoPrecio = sugerirPrecio(distanciaKm, duracionMin);
@@ -91,7 +100,6 @@ export default function CrearViaje() {
           setPrecio("---");
         }
       } else {
-        // Si origen o destino están vacíos, limpia datos
         setDistanciaKm(null);
         setDuracionMin(null);
         setPrecio("---");
@@ -107,7 +115,6 @@ export default function CrearViaje() {
     const total = base + km * costoKm + minutos * costoMin;
     return formatearMilesConPuntos(Math.round(total));
   };
-  
 
   const formatDate = (date: Date) =>
     date.toLocaleDateString("es-ES", {
@@ -151,10 +158,7 @@ export default function CrearViaje() {
   const onChangeTime = (_: any, selectedTime?: Date) => {
     if (selectedTime) {
       const newDate = new Date(tripDate);
-      newDate.setHours(
-        selectedTime.getHours(),
-        selectedTime.getMinutes()
-      );
+      newDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
       setTripDate(newDate);
     }
   };
@@ -171,7 +175,7 @@ export default function CrearViaje() {
     }
 
     try {
-      const { distanciaKm, duracionMin } = await obtenerRuta(origen, destino);
+      const { distanciaKm, duracionMin } = await obtenerRuta(origenMapa, destinoMapa);
       const precioSugerido = sugerirPrecio(distanciaKm, duracionMin);
       setPrecio(precioSugerido);
 
@@ -192,13 +196,13 @@ export default function CrearViaje() {
       const triggerDate = new Date(tripDate.getTime() - 2 * 60 * 1000);
       await scheduleAtDate(
         "Tu viaje está por iniciar",
-        `Origen: ${origen}. Sale en 2 minutos.`,
+        `Origen: ${origenMapa}. Sale en 2 minutos.`,
         triggerDate
       );
 
       setModalVisible(true);
       setOrigen("");
-      setDestino("Universidad de la Sabana");
+      setDestino("");
       setPrecio("---");
       setIsDestinoEditable(false);
       setTripDate(new Date());
@@ -211,138 +215,305 @@ export default function CrearViaje() {
   };
 
   return (
-    <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
-      <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-        <Ionicons name="arrow-back" size={24} color={colors.blue} />
-      </TouchableOpacity>
-      <Text style={styles.title}>Crea un nuevo viaje</Text>
-
-      <View style={styles.swapContainer}>
-        <View style={styles.inputWrapperLeft}>
-          {isDestinoEditable ? (
-            <Text style={styles.inputEditable}>{origen}</Text>
-          ) : (
-            <AutocompleteLugar value={origen} onSelect={(direccion) => setOrigen(direccion)} />
-          )}
-
-          <Text style={[{marginTop: 0.5 }]}></Text>
-          {isDestinoEditable ? (
-            <AutocompleteLugar value={destino} onSelect={(direccion) => setDestino(direccion)} />
-          ) : (
-            <Text style={styles.inputEditable}>{destino}</Text>
-          )}
-        </View>
-
-        <TouchableOpacity style={styles.swapButtonRight} onPress={handleSwap}>
-          <Ionicons name="swap-vertical" size={28} color={colors.blue} />
+    <View style={styles.container}>
+      {/* Header fijo */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={24} color={colors.blue} />
         </TouchableOpacity>
+        <Text style={styles.headerTitle}>Crear viaje</Text>
       </View>
 
-      {/* Mostrar duración y distancia con iconos */}
-      {distanciaKm !== null && duracionMin !== null && (
-        <View style={styles.inputGroupFull}>
-          <View style={styles.infoRow}>
-            <Ionicons name="time-outline" size={20} color={colors.blue} style={styles.icon} />
-            <Text style={styles.label}>
-              Duración estimada: <Text style={styles.infoText}>{Math.round(duracionMin)} minutos</Text>
-            </Text>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Ionicons name="navigate-outline" size={20} color={colors.blue} style={styles.icon} />
-            <Text style={styles.label}>
-              Distancia estimada: <Text style={styles.infoText}>{distanciaKm.toFixed(2)} km</Text>
-            </Text>
-          </View>
-        </View>
-      )}
-
-      <View style={styles.inputGroupFull}>
-      <Text style={styles.label}>Fecha</Text>
-      <DateTimePicker
-          style={styles.pickerFull}
-          value={tripDate}
-          mode="date"
-          display="default"
-          onChange={onChangeDate}
-        />
-      </View>
-
-      <View style={styles.inputGroupFull}>
-        <Text style={styles.label}>Hora de salida</Text>
-        <DateTimePicker
-          style={styles.pickerFull}
-          value={tripDate}
-          mode="time"
-          display="default"
-          onChange={onChangeTime}
-        />
-      </View>
-
-      <View style={styles.inputGroupFull}>
-        <Text style={styles.label}>Precio sugerido</Text>
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <Text style={{ fontSize: 18, marginRight: 10 }}>$</Text>
-          <TextInput
-            style={{
-              borderColor: colors.grey,
-              borderRadius: 8,
-              padding: 10,
-              fontSize: 16,
-              flex: 1,
-            }}
-            keyboardType="numeric"
-            value={precio}
-            onChangeText={setPrecio}
+      {/* ScrollView para mapa + formulario */}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingTop: HEADER_HEIGHT, paddingBottom: 40 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Mapa */}
+        <View style={styles.mapContainer}>
+          <MapComponent
+            viaje={{ direccion: isDestinoEditable ? destinoMapa : origenMapa }}
+            puntosAceptados={[]}
           />
         </View>
-      </View>
 
-      <TouchableOpacity style={styles.createButton} onPress={handleCreateViaje}>
-        <Text style={styles.createButtonText}>Crear Viaje</Text>
-      </TouchableOpacity>
+        {/* Formulario */}
+        <View style={styles.formContainer}>
+          <View style={styles.swapContainer}>
+            <View style={styles.inputWrapperLeft}>
+              {isDestinoEditable ? (
+                <Text style={styles.inputEditable}>{origen}</Text>
+              ) : (
+                <AutocompleteLugar
+                  value={origen}
+                  onSelect={(direccion) => setOrigen(direccion)}
+                />
+              )}
 
-      <Modal transparent visible={modalVisible} animationType="fade" onRequestClose={() => setModalVisible(false)}>
+              <Text style={{ marginTop: 5 }}></Text>
+              {isDestinoEditable ? (
+                <AutocompleteLugar
+                  value={destino}
+                  onSelect={(direccion) => setDestino(direccion)}
+                />
+              ) : (
+                <Text style={styles.inputEditable}>{destino || "Universidad de la Sabana"}</Text>
+              )}
+            </View>
+
+            <TouchableOpacity style={styles.swapButtonRight} onPress={handleSwap}>
+              <Ionicons name="swap-vertical" size={28} color={colors.blue} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Duración y distancia */}
+          {distanciaKm !== null && duracionMin !== null && (
+            <View style={styles.inputGroupFull}>
+              <View style={styles.infoRow}>
+                <Ionicons name="time-outline" size={20} color={colors.blue} style={styles.icon} />
+                <Text style={styles.label}>
+                  Duración estimada: <Text style={styles.infoText}>{Math.round(duracionMin)} minutos</Text>
+                </Text>
+              </View>
+
+              <View style={styles.infoRow}>
+                <Ionicons name="navigate-outline" size={20} color={colors.blue} style={styles.icon} />
+                <Text style={styles.label}>
+                  Distancia estimada: <Text style={styles.infoText}>{distanciaKm.toFixed(2)} km</Text>
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Fecha y hora */}
+          <View style={styles.inputGroupFull}>
+            <Text style={styles.label}>Fecha</Text>
+            <DateTimePicker
+              style={styles.pickerFull}
+              value={tripDate}
+              mode="date"
+              display="default"
+              onChange={onChangeDate}
+            />
+          </View>
+
+          <View style={styles.inputGroupFull}>
+            <Text style={styles.label}>Hora de salida</Text>
+            <DateTimePicker
+              style={styles.pickerFull}
+              value={tripDate}
+              mode="time"
+              display="default"
+              onChange={onChangeTime}
+            />
+          </View>
+
+          {/* Precio sugerido */}
+          <View style={styles.inputGroupFull}>
+            
+              <Text style={styles.label}>Precio sugerido</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", width: "25%" }}>
+              <Text style={{ fontSize: 18, marginRight: 10 }}>$</Text>
+              <TextInput
+                style={{
+                  borderWidth: 1,
+                  width: "10%",
+                  borderColor: colors.blue,
+                  backgroundColor: colors.lightBlue,
+                  borderRadius: 8,
+                  padding: 10,
+                  fontSize: 16,
+                  flex: 1,
+                }}
+                keyboardType="numeric"
+                value={precio}
+                onChangeText={setPrecio}
+              />
+            </View>
+          </View>
+
+          {/* Botón crear viaje */}
+          <TouchableOpacity style={styles.createButton} onPress={handleCreateViaje}>
+            <Text style={styles.createButtonText}>Crear Viaje</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+
+      {/* Modal éxito */}
+      <Modal
+        transparent
+        visible={modalVisible}
+        animationType="fade"
+        onRequestClose={() => setModalVisible(false)}
+      >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <Text style={styles.modalTitle}>¡Viaje creado!</Text>
             <Text style={styles.modalMessage}>Tu viaje ha sido creado con éxito.</Text>
-            <Pressable style={[styles.modalButton, styles.confirmButton]} onPress={() => {
-              setModalVisible(false);
-              router.push("../");
-            }}>
+            <Pressable
+              style={[styles.modalButton, styles.confirmButton]}
+              onPress={() => {
+                setModalVisible(false);
+                router.push("../");
+              }}
+            >
               <Text style={styles.modalButtonText}>Ir a Inicio</Text>
             </Pressable>
           </View>
         </View>
       </Modal>
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { backgroundColor: colors.white, padding: 20, paddingTop: 80 },
-  backButton: { marginBottom: 15, width: 40 },
-  title: { fontSize: 28, fontWeight: "bold", color: colors.black, marginBottom: 25 },
-  swapContainer: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
-  inputWrapperLeft: { flex: 1, marginRight: 10 },
-  label: { fontSize: 16, color: colors.black, marginBottom: 8, fontWeight: "600" },
-  inputEditable: { borderWidth: 1, borderColor: colors.blue, borderRadius: 8, padding: 12, fontSize: 16, backgroundColor: "#f0f7ff", color: colors.black },
-  swapButtonRight: { padding: 10, justifyContent: "center", alignItems: "center" },
-  inputGroupFull: { width: "100%", marginBottom: 20, flexDirection: "column" },
-  pickerFull: { width: "100%" },
-  createButton: { backgroundColor: colors.white, borderRadius: 12,
-     padding: 12, alignItems: "center",
-    borderWidth: 1, borderColor: colors.blue, shadowColor: colors.black, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 3 },
-  createButtonText: { color: colors.blue, fontSize: 18, fontWeight: "bold" },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 30 },
-  modalContainer: { backgroundColor: colors.white, padding: 30, borderRadius: 12, alignItems: "center", width: "100%", maxWidth: 360 },
-  modalTitle: { fontSize: 20, fontWeight: "700", color: colors.black, marginBottom: 15 },
-  modalMessage: { fontSize: 16, color: colors.grey, textAlign: "center", marginBottom: 25 },
-  modalButton: { borderRadius: 8, paddingVertical: 12, paddingHorizontal: 30 },
-  confirmButton: { backgroundColor: colors.blue, marginTop: 20 },
-  modalButtonText: { color: colors.white, fontSize: 16, fontWeight: "600" },
-  infoRow: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
-  icon: { marginRight: 8 },
-  infoText: { fontWeight: "700", color: colors.blue },
+  container: {
+    flex: 1,
+    backgroundColor: colors.white,
+  },
+  header: {
+    position: 'absolute',
+    top: 0,
+    width: '100%',
+    backgroundColor: colors.white,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    zIndex: 9999,
+    paddingTop: 80,
+    paddingBottom: 20,
+  },
+  backButton: {
+    padding: 8,
+  },
+  headerTitle: {
+    color: colors.black,
+    fontSize: 20,
+    fontWeight: "bold",
+    marginLeft: 15,
+  },
+  mapContainer: {
+    marginTop: 0,
+    height: MAP_HEIGHT,
+    width: "100%",
+  },
+  formContainer: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+  swapContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  inputWrapperLeft: {
+    flex: 1,
+    marginRight: 10,
+  },
+  label: {
+    fontSize: 16,
+    color: colors.black,
+    marginBottom: 8,
+    fontWeight: "600",
+  },
+  inputEditable: {
+    borderWidth: 1,
+    borderColor: colors.blue,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: "#f0f7ff",
+    color: colors.black,
+  },
+  swapButtonRight: {
+    padding: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  inputGroupFull: {
+    width: "100%",
+    marginBottom: 20,
+    flexDirection: "column",
+  },
+  pickerFull: {
+    width: "100%",
+  },
+  createButton: {
+    backgroundColor: colors.blue,
+    borderRadius: 12,
+    padding: 12,
+    alignItems: "center",
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  createButtonText: {
+    color: colors.white,
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 30,
+  },
+  modalContainer: {
+    backgroundColor: colors.white,
+    padding: 30,
+    borderRadius: 12,
+    alignItems: "center",
+    width: "100%",
+    maxWidth: 360,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: colors.black,
+    marginBottom: 15,
+  },
+  modalMessage: {
+    fontSize: 16,
+    color: colors.grey,
+    textAlign: "center",
+    marginBottom: 25,
+  },
+  modalButton: {
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+  },
+  confirmButton: {
+    backgroundColor: colors.blue,
+    marginTop: 20,
+  },
+  modalButtonText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  icon: {
+    marginRight: 8,
+  },
+  infoText: {
+    fontWeight: "700",
+    color: colors.blue,
+  },
+  preciSugerido: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
 });
