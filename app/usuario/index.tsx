@@ -11,15 +11,15 @@ import {
 import { Searchbar } from "react-native-paper";
 import { Ionicons } from "@expo/vector-icons";
 import colors from "../../styles/Colors";
-import { SortIcon, FilterIcon } from "../../components/Icons";
+import { FilterIcon } from "../../components/Icons";
 import { useCliente } from "../../context/viajeContext/viajeClienteContext";
 import { collection, doc, getDoc, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "../../utils/FirebaseConfig";
 
 import ModalReservaViaje from "../../components/modales/ModalReservaViaje";
+import ModalFiltro from "../../components/modales/ModalFiltro";
 import { useAuth } from "../../context/authContext/AuthContext";
 import { router } from "expo-router";
-
 
 export default function Index() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -31,41 +31,54 @@ export default function Index() {
   const [conductorInfo, setConductorInfo] = useState<any>(null);
   const [cargandoConductor, setCargandoConductor] = useState(false);
 
-  const { obtenerViajesPorEstado, obtenerViajesPorEstadoViajeYEstadoPunto } = useCliente();
+  const { obtenerViajesPorEstadoViajeYEstadoPunto } = useCliente();
 
-  const { user } = useAuth();
-  const { userName } = useAuth();
+  const { user, userName } = useAuth();
   const [viajeEnCurso, setViajeEnCurso] = useState<any>(null);
 
+  // Modal filtro
+  const [modalFiltroVisible, setModalFiltroVisible] = useState(false);
+  const [filters, setFilters] = useState<{
+    tipoViaje: "desde" | "hacia" | "";
+    fechaFiltro: "hoy" | "mañana" | "personalizado" | "";
+    fechaPersonalizada?: Date | null;
+    precioMin?: number | null;
+    precioMax?: number | null;
+  }>({
+    tipoViaje: "",
+    fechaFiltro: "",
+    fechaPersonalizada: null,
+    precioMin: null,
+    precioMax: null,
+  });
 
   const onChangeSearch = (query: string) => setSearchQuery(query);
 
+  // Carga viaje en curso con listener
   useEffect(() => {
     if (!user) return;
-  
+
     setLoading(true);
-  
+
     const viajesRef = collection(db, "viajes");
     const q = query(viajesRef, where("estado", "==", "en curso"));
-  
+
     const unsubscribe = onSnapshot(
       q,
       async (querySnapshot) => {
         let viajeEncontrado: any = null;
-  
+
         for (const docSnap of querySnapshot.docs) {
           const data = docSnap.data();
           const puntos = data.puntos || [];
-  
-          // ¿Tiene punto aceptado para este usuario?
+
           const puntoAceptado = puntos.find(
             (p: any) => p.estado === "aceptado" && p.idCliente === user.uid
           );
-  
+
           if (puntoAceptado) {
             viajeEncontrado = { id: docSnap.id, ...data };
-  
-            // Obtener foto del conductor si no está ya
+
             if (viajeEncontrado.idConductor && !viajeEncontrado.conductorCarPhoto) {
               const docRef = doc(db, "users", viajeEncontrado.idConductor);
               const docSnapUser = await getDoc(docRef);
@@ -74,10 +87,10 @@ export default function Index() {
                 viajeEncontrado.conductorCarPhoto = conductorData.car?.photoURL || null;
               }
             }
-            break; // ya encontramos el viaje, no continuar
+            break;
           }
         }
-  
+
         setViajeEnCurso(viajeEncontrado);
         setLoading(false);
       },
@@ -86,65 +99,29 @@ export default function Index() {
         setLoading(false);
       }
     );
-  
+
     return () => unsubscribe();
   }, [user]);
-  
 
-
-  
-  useEffect(() => {
-    async function cargarViajeEnCurso() {
-      if (!user) return;
-      setLoading(true);
-      try {
-        const viajesEnCurso = await obtenerViajesPorEstadoViajeYEstadoPunto("en curso", "aceptado");
-  
-        // Filtra viaje con punto solicitado por el usuario y aceptado
-        const viajeFiltrado = viajesEnCurso.find(viaje =>
-          viaje.puntos.some(punto => punto.idCliente === user.uid && punto.estado === "aceptado")
-        );
-  
-        if (viajeFiltrado && viajeFiltrado.idConductor) {
-          const docRef = doc(db, "users", viajeFiltrado.idConductor);
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists()) {
-            const conductorData = docSnap.data();
-            viajeFiltrado.conductorCarPhoto = conductorData.car?.photoURL || null;
-          }
-        }
-  
-        setViajeEnCurso(viajeFiltrado || null);
-      } catch (error) {
-        console.error("Error cargando viaje en curso:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-
-    cargarViajeEnCurso();
-  }, [user]);
-  
+  // Carga viajes por iniciar con listener
   useEffect(() => {
     if (!user) return;
-  
+
     setLoading(true);
-  
+
     const viajesRef = collection(db, "viajes");
     const q = query(viajesRef, where("estado", "==", "por iniciar"));
-  
+
     const unsubscribe = onSnapshot(
       q,
       async (querySnapshot) => {
         try {
           const viajesDocs = querySnapshot.docs;
-  
-          // Para cada viaje, obtenemos info del conductor y armamos el objeto completo
+
           const viajesConductor = await Promise.all(
             viajesDocs.map(async (docSnap) => {
               const viaje: { id: string; idConductor?: string; [key: string]: any } = { id: docSnap.id, ...docSnap.data() };
-  
+
               if (viaje.idConductor) {
                 const docRef = doc(db, "users", viaje.idConductor);
                 const docSnapUser = await getDoc(docRef);
@@ -164,7 +141,7 @@ export default function Index() {
               };
             })
           );
-  
+
           setViajesPorIniciar(viajesConductor);
         } catch (error) {
           console.error("Error procesando viajes por iniciar:", error);
@@ -177,10 +154,9 @@ export default function Index() {
         setLoading(false);
       }
     );
-  
+
     return () => unsubscribe();
   }, [user]);
-  
 
   async function obtenerConductorPorId(idConductor: string) {
     setCargandoConductor(true);
@@ -212,11 +188,72 @@ export default function Index() {
     }
   };
 
+  // Función para convertir DD/MM/YYYY a Date
+  const parseFechaDDMMYYYY = (fechaStr: string): Date | null => {
+    const partes = fechaStr.split("/");
+    if (partes.length !== 3) return null;
+
+    const dia = parseInt(partes[0], 10);
+    const mes = parseInt(partes[1], 10) - 1;
+    const anio = parseInt(partes[2], 10);
+
+    const fecha = new Date(anio, mes, dia);
+    return isNaN(fecha.getTime()) ? null : fecha;
+  };
+
+  const mismaFechaSinHora = (fecha1: Date, fecha2: Date) => {
+    return (
+      fecha1.getFullYear() === fecha2.getFullYear() &&
+      fecha1.getMonth() === fecha2.getMonth() &&
+      fecha1.getDate() === fecha2.getDate()
+    );
+  };
+
+  const viajesFiltrados = viajesPorIniciar.filter((viaje) => {
+    const texto = searchQuery.toLowerCase();
+    const direccion = viaje.direccion?.toLowerCase() || "";
+    if (texto && !direccion.includes(texto)) return false;
+
+    // Filtro tipoViaje con boolean haciaLaU
+    if (filters.tipoViaje === "hacia" && viaje.haciaLaU !== true) return false;
+    if (filters.tipoViaje === "desde" && viaje.haciaLaU !== false) return false;
+
+    // FILTRO FECHA con formato DD/MM/YYYY
+    if (filters.fechaFiltro) {
+      const hoy = new Date();
+      const manana = new Date();
+      manana.setDate(hoy.getDate() + 1);
+
+      if (!viaje.fecha) return false;
+      const fechaViaje = parseFechaDDMMYYYY(viaje.fecha);
+      if (!fechaViaje) return false;
+
+      if (filters.fechaFiltro === "hoy") {
+        if (!mismaFechaSinHora(fechaViaje, hoy)) return false;
+      } else if (filters.fechaFiltro === "mañana") {
+        if (!mismaFechaSinHora(fechaViaje, manana)) return false;
+      } else if (filters.fechaFiltro === "personalizado") {
+        if (filters.fechaPersonalizada) {
+          if (!mismaFechaSinHora(fechaViaje, filters.fechaPersonalizada)) return false;
+        }
+      }
+    }
+
+    // FILTRO PRECIO (string con punto o coma decimal -> number)
+    const precioString = viaje.precio || "";
+    const precioViaje = Number(precioString.replace(",", "."));
+    if (isNaN(precioViaje)) return false;
+
+    if (filters.precioMin != null && precioViaje < filters.precioMin) return false;
+    if (filters.precioMax != null && precioViaje > filters.precioMax) return false;
+
+    return true;
+  });
+
   return (
     <View style={styles.container}>
-
-    <Text style={styles.greetingText}>
-            Hola, {userName ? userName.charAt(0).toUpperCase() + userName.slice(1) : ""}
+      <Text style={styles.greetingText}>
+        Hola, {userName ? userName.charAt(0).toUpperCase() + userName.slice(1) : ""}
       </Text>
       <Searchbar
         placeholder="Buscar viaje..."
@@ -226,83 +263,56 @@ export default function Index() {
       />
 
       <View style={styles.buttonsContainer}>
-       
-
-        <TouchableOpacity style={styles.filter}>
-          <FilterIcon color={colors.grey} />{" "}
+        <TouchableOpacity style={styles.filter} onPress={() => setModalFiltroVisible(true)}>
+          <FilterIcon color={colors.grey} />
           <Text style={styles.buttonText}>Filter</Text>
         </TouchableOpacity>
       </View>
 
-      
+      <ScrollView showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollContainer}>
+        {viajeEnCurso ? (
+          <View style={styles.headerContainer}>
+            <View style={styles.textContainer}>
+              <Text style={styles.headerTitle}>{viajeEnCurso.direccion}</Text>
+              <Text style={styles.headerSubtitle}>{` ${viajeEnCurso.horaSalida} hr`}</Text>
+              <TouchableOpacity
+                style={styles.detailsButton}
+                onPress={() => router.push("../detallesViaje/EnCursoUsuario")}
+              >
+                <Text style={styles.detailsButtonText}>Ver detalles</Text>
+              </TouchableOpacity>
+            </View>
+            <Image
+              source={
+                viajeEnCurso.conductorCarPhoto
+                  ? { uri: viajeEnCurso.conductorCarPhoto }
+                  : require("../../assets/images/carImage.png")
+              }
+              style={styles.carImage}
+            />
+          </View>
+        ) : null}
 
-
-
-      <ScrollView
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContainer}
-      >
-
-{viajeEnCurso ? (
-      <View style={styles.headerContainer}>
-        <View style={styles.textContainer}>
-          <Text style={styles.headerTitle}>{viajeEnCurso.direccion}</Text>
-          <Text style={styles.headerSubtitle}>
-            {` ${viajeEnCurso.horaSalida} hr`}
-          </Text>
-          <TouchableOpacity
-            style={styles.detailsButton}
-            onPress={() => router.push('../detallesViaje/EnCursoUsuario')}
-          >
-            <Text style={styles.detailsButtonText}>Ver detalles</Text>
-          </TouchableOpacity>
-        </View>
-        <Image
-          source={
-            viajeEnCurso.conductorCarPhoto
-              ? { uri: viajeEnCurso.conductorCarPhoto }
-              : require("../../assets/images/carImage.png")
-          }
-          style={styles.carImage}
-        />
-      </View>
-) : null}
         <View style={styles.tripsContainer}>
           {loading ? (
             <ActivityIndicator size="large" color={colors.blue} />
-          ) : viajesPorIniciar.length === 0 ? (
-            <Text>No hay viajes por iniciar</Text>
+          ) : viajesFiltrados.length === 0 ? (
+            <Text>No hay viajes que coincidan con los filtros</Text>
           ) : (
-            viajesPorIniciar.map((viaje) => (
+            viajesFiltrados.map((viaje) => (
               <View key={viaje.id} style={styles.tripCard}>
-                {/* Foto del carro del conductor */}
                 {viaje.conductorCarPhoto ? (
-                  <Image
-                    source={{ uri: viaje.conductorCarPhoto }}
-                    style={styles.image}
-                  />
+                  <Image source={{ uri: viaje.conductorCarPhoto }} style={styles.image} />
                 ) : (
-                  <Image
-                    source={require("../../assets/images/carImage.png")}
-                    style={styles.image}
-                  />
+                  <Image source={require("../../assets/images/carImage.png")} style={styles.image} />
                 )}
 
-                {/* Nombre del conductor */}
                 <Text style={styles.conductorName}>{viaje.conductorNombre}</Text>
-
-                {/* Dirección */}
                 <Text style={styles.tripName}>{viaje.direccion}</Text>
-
-                {/* Precio */}
-                <Text style={styles.tripPrice}>€ {viaje.precio}</Text>
+                <Text style={styles.tripPrice}>COP {viaje.precio}</Text>
 
                 <View style={styles.row}>
-                  <Ionicons
-                    name="calendar-outline"
-                    size={16}
-                    color={colors.grey}
-                  />
+                  <Ionicons name="calendar-outline" size={16} color={colors.grey} />
                   <Text style={styles.dateText}> {viaje.fecha}</Text>
                 </View>
                 <View style={styles.row}>
@@ -310,10 +320,7 @@ export default function Index() {
                   <Text style={styles.dateText}> {viaje.horaSalida}</Text>
                 </View>
 
-                <TouchableOpacity
-                  style={styles.reserveButton}
-                  onPress={() => abrirModal(viaje)}
-                >
+                <TouchableOpacity style={styles.reserveButton} onPress={() => abrirModal(viaje)}>
                   <Text style={styles.reserveButtonText}>Reservar</Text>
                 </TouchableOpacity>
               </View>
@@ -321,6 +328,12 @@ export default function Index() {
           )}
         </View>
       </ScrollView>
+
+      <ModalFiltro
+        visible={modalFiltroVisible}
+        onClose={() => setModalFiltroVisible(false)}
+        onApplyFilters={(nuevosFiltros) => setFilters(nuevosFiltros)}
+      />
 
       <ModalReservaViaje
         visible={modalVisible}
@@ -382,11 +395,10 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   carImage: {
-     width: 150,
+    width: 150,
     height: 150,
     resizeMode: "contain",
   },
-   
   detailsButton: {
     backgroundColor: colors.white,
     paddingVertical: 8,
@@ -401,14 +413,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 20,
-  },
-  sort: {
-    backgroundColor: colors.lightBlue,
-    paddingVertical: 8,
-    paddingHorizontal: 15,
-    borderRadius: 20,
-    flexDirection: "row",
-    alignItems: "center",
   },
   filter: {
     backgroundColor: colors.lightBlue,
