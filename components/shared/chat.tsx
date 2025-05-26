@@ -1,18 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, FlatList, TouchableOpacity,
-  StyleSheet, SafeAreaView, KeyboardAvoidingView, Platform
+  StyleSheet, SafeAreaView, KeyboardAvoidingView, Platform, ActivityIndicator
 } from 'react-native';
 import colors from '@/styles/Colors';
 import { useAuth } from '@/context/authContext/AuthContext';
-import type { Message } from '@/app/interfaces/AppInterfaces';  // Importa la interfaz
+import type { Message } from '@/app/interfaces/AppInterfaces';
 
-const SUGERENCIAS = ['Estoy teniendo problemas con la app','Me gustaría cambiar la ruta del viaje que tengo reservado','El viaje está más largo de lo esperado','Tengo dificultades con la ubicación de recogida o destino','Hay un cambio de planes con la hora de salida o llegada',];
+const SUGERENCIAS = [
+  'Estoy teniendo problemas con la app',
+  '¿Cómo creo un viaje como conductor?',
+  'El viaje está más largo de lo esperado',
+  'Tengo dificultades con la ubicación de recogida o destino',
+  'Hay un cambio de planes con la hora de salida o llegada',
+];
 
 export default function Chat() {
   const { userName } = useAuth();
 
-  const initialBotMessage = `Hola ${userName || ''}, soy tu Wheely, tu asistente virtual. ¿En qué te puedo colaborar?`;
+  const initialBotMessage = `Hola ${userName || ''}, Soy tu Wheely, tu asistente virtual. ¿En qué te puedo colaborar?`;
   const [messages, setMessages] = useState<Message[]>([
     {
       text: initialBotMessage,
@@ -39,20 +45,29 @@ export default function Chat() {
     setUserPrompt('');
 
     const contextoWheels = `Eres un asistente virtual para una aplicación llamada Wheels, la cual conecta conductores y usuarios.
-    - Los conductores ofrecen viajes.
-    - Los usuarios ven los viajes disponibles y pueden seleccionar el que mejor les convenga.
-    -    El usuario puede sugerir puntos de recogida y negociar la tarifa con el conductor.
-    - Desde el lado del conductor, puede ver los puntos que debe recoger.
-    - Para confirmar recogida, el conductor muestra un código que el usuario debe escanear.
-    - El conductor finaliza el viaje después de la recogida.
-    - Se pueden ver solicitudes, historial y más.
-    Si la pregunta no está relacionada con Wheels, responde que la pregunta no tiene que ver con el contexto.
-    Si el usuario pide ayuda para contactar a un asesor, responde: "Puedes comunicarte con soporte en el siguiente número: 3105437755."
+- Los conductores ofrecen viajes.
+- Los usuarios ven los viajes disponibles y pueden seleccionar el que mejor les convenga.
+- El usuario puede sugerir puntos de recogida y negociar la tarifa con el conductor.
+- Desde el lado del conductor, puede ver los puntos que debe recoger.
+- Para confirmar recogida, el conductor muestra un código que el usuario debe escanear.
+- El conductor finaliza el viaje después de la recogida.
+- Se pueden ver solicitudes, historial y más.
+Si la pregunta no está relacionada con Wheels, responde que la pregunta no tiene que ver con el contexto.
+Si el usuario pide ayuda para contactar a un asesor, responde: "Puedes comunicarte con soporte en el siguiente número: 3105437755."
 
-    Pregunta: ${userPrompt}`;
+Pregunta: ${userPrompt}`;
 
     try {
       setIsLoading(true);
+
+      
+      const loadingMessage: Message = {
+        text: 'Wheely está escribiendo...',
+        sender_by: 'Bot',
+        date: new Date(),
+        state: 'received',
+      };
+      setMessages(prev => [...prev, loadingMessage]);
 
       const endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyC3CGhhZXZ1TwFNK6aCb4xlg0ARfgBv96Q';
 
@@ -65,7 +80,12 @@ export default function Chat() {
       });
 
       const data = await response.json();
-      const botText = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? 'No response';
+
+      const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? 'No response';
+      const botText = rawText.replace(/\*\*/g, "");
+
+      // Quita el mensaje loader antes de mostrar respuesta real
+      setMessages(prev => prev.filter(m => m.text !== 'Wheely está escribiendo...'));
 
       const botMessage: Message = {
         text: botText,
@@ -77,6 +97,8 @@ export default function Chat() {
       setMessages(prev => [...prev, botMessage]);
     } catch (error) {
       console.log('Error en la petición:', error);
+      setMessages(prev => prev.filter(m => m.text !== 'Wheely está escribiendo...'));
+
       const errorBotMessage: Message = {
         text: 'Error fetching response.',
         sender_by: 'Bot',
@@ -91,9 +113,24 @@ export default function Chat() {
 
   const renderMessage = ({ item }: { item: Message }) => {
     const isUser = item.sender_by === 'Me';
+
+    // Render loader con spinner y texto
+    if (item.text === 'Wheely está escribiendo...') {
+      return (
+        <View style={[styles.msgContainer, styles.botMsg, {flexDirection:'row', alignItems:'center'}]}>
+          <ActivityIndicator size="small" color={colors.blue} />
+          <Text style={[styles.msgText, {marginLeft: 8, fontStyle: 'italic', color: colors.grey}]}>
+            {item.text}
+          </Text>
+        </View>
+      );
+    }
+
     return (
       <View style={[styles.msgContainer, isUser ? styles.userMsg : styles.botMsg]}>
-        <Text style={[styles.msgText, isUser ? styles.userMsgText : styles.botMsgText]}>{item.text}</Text>
+        <Text style={[styles.msgText, isUser ? styles.userMsgText : styles.botMsgText]}>
+          {item.text}
+        </Text>
       </View>
     );
   };

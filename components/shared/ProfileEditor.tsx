@@ -71,7 +71,7 @@ export default function ProfileEditor({ initialData, onCancel, onSave }: Profile
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         {
-          options: ['Cancelar', 'Seleccionar de la Galería', 'Tomar Foto'],
+          options: ['Cancelar', 'Seleccionar de la galería', 'Tomar foto'],
           cancelButtonIndex: 0,
         },
         idx => {
@@ -86,7 +86,7 @@ export default function ProfileEditor({ initialData, onCancel, onSave }: Profile
 
   const handleSave = async () => {
     if (!profileData.name.trim()) {
-      Alert.alert('Error', 'El nombre es obligatorio');
+      Alert.alert('Error', 'El nombre es obligatorio.');
       return;
     }
     setLoading(true);
@@ -96,7 +96,7 @@ export default function ProfileEditor({ initialData, onCancel, onSave }: Profile
         profilePhotoURL: profileData.profilePhotoURL,
       });
     } catch (error) {
-      Alert.alert('Error', 'No se pudo actualizar el perfil');
+      Alert.alert('Error', 'No se pudo actualizar el perfil.');
     } finally {
       setLoading(false);
     }

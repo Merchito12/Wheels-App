@@ -1,92 +1,104 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image, Modal } from 'react-native';
-import colors from "@/styles/Colors";  // Asegúrate de tener un archivo de colores
-import { ArrowRight, LogOutIcon, StarIcon } from '@/components/Icons';
-import { useRouter } from 'expo-router';
-import { useAuth } from '../../../context/authContext/AuthContext';  // Importar el contexto
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  Modal,
+  Alert,
+} from "react-native";
+import colors from "@/styles/Colors";
+import { ArrowRight, LogOutIcon, StarIcon } from "@/components/Icons";
+import { useRouter } from "expo-router";
+import { useAuth } from "../../../context/authContext/AuthContext";
 
 export default function Ajustes() {
-
   const router = useRouter();
-  const { logout } = useAuth(); // Usando el logout desde el contexto
-  const [isModalVisible, setIsModalVisible] = useState(false); // Estado para controlar la visibilidad del modal
-  const { userName,userRole,profilePhotoURL } = useAuth(); // Obtener el nombre del usuario logueado
-  const navigateToEdit = () => {
-    router.push('./perfil/editarPerfil');
-  };
+  const { logout, updateUserRole, userName, profilePhotoURL, userRole } = useAuth();
+  const [isModalVisible, setIsModalVisible] = useState(false);
 
-  const navigateTosoporte = () => {
-    router.push('./perfil/soporte');
-  };
-  const navigateToChatbot = () => {
-    router.push('./perfil/chat');
-  };
-
-  const navigateTotyc = () => {
-    router.push('./perfil/terminos-y-condiciones');
-  };
+  const navigateToEdit = () => router.push("./perfil/editarPerfil");
+  const navigateToChat = () => router.push("./perfil/chat");
+  const navigateToAuto = () => router.push("./perfil/editarAuto");
+  const navigateTosoporte = () => router.push("./perfil/soporte");
+  const navigateTotyc = () => router.push("./perfil/terminos-y-condiciones");
 
   const handleLogout = async () => {
-    setIsModalVisible(false); // Cierra el modal al confirmar el cierre de sesión
+    setIsModalVisible(false);
     try {
-      await logout(); // Llama a la función logout desde el contexto
-      router.push('/'); // Redirige a la pantalla principal
+      await logout();
+      router.push("/");
     } catch (error) {
       console.error("Error al cerrar sesión", error);
     }
   };
 
+  const handleSetUserRoleUsuario = () => {
+    Alert.alert(
+      "Confirmar cambio",
+      "¿Estás seguro de que quieres cambiar tu rol a Conductor?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Sí, cambiar",
+          onPress: async () => {
+            try {
+              await updateUserRole("Conductor");
+              router.replace("/conductor");
+            } catch (error) {
+              Alert.alert("Error", "No se pudo actualizar el rol. Intenta nuevamente.");
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
   return (
     <View style={styles.container}>
-
-      {/* Imagen de perfil y texto debajo */}
       <View style={styles.profileContainer}>
         <Image
-          source={{uri: profilePhotoURL || 'https://via.placeholder.com/100'}} // Imagen de perfil, usa una imagen por defecto si no hay URL
+          source={{ uri: profilePhotoURL || "https://via.placeholder.com/100" }}
           style={styles.profileImage}
         />
-        <Text style={styles.profileName}>{userName}</Text>
-        <Text style={styles.profileRole}>{userRole}</Text>
-        <View style={styles.starsContainer }>
-          <StarIcon color={colors.blue} />
-          <Text style={{ marginLeft: 10 }}>5.00</Text>
-        </View>
+        <Text style={styles.profileName}>
+          {userName ? userName.charAt(0).toUpperCase() + userName.slice(1) : ""}
+        </Text>
+        <Text style={styles.profileRole}>{userRole || "Conductor"}</Text>
+        
       </View>
 
-      {/* Opciones */}
-      <TouchableOpacity style={styles.option}>
+      <TouchableOpacity style={styles.option} onPress={handleSetUserRoleUsuario}>
         <Text style={styles.optionText}>Quiero ser Conductor</Text>
         <ArrowRight color={colors.lightGreyrows} />
       </TouchableOpacity>
-      <TouchableOpacity style={styles.option} onPress={navigateToChatbot}>
-        <Text style={styles.optionText}>Chatbot</Text>
+      <TouchableOpacity style={styles.option} onPress={navigateToChat}>
+        <Text style={styles.optionText}>ChatBot</Text>
         <ArrowRight color={colors.lightGreyrows} />
       </TouchableOpacity>
       <TouchableOpacity style={styles.option} onPress={navigateToEdit}>
         <Text style={styles.optionText}>Editar perfil</Text>
         <ArrowRight color={colors.lightGreyrows} />
       </TouchableOpacity>
-
+     
       <TouchableOpacity style={styles.option} onPress={navigateTosoporte}>
         <Text style={styles.optionText}>Soporte</Text>
         <ArrowRight color={colors.lightGreyrows} />
       </TouchableOpacity>
-
       <TouchableOpacity style={styles.option} onPress={navigateTotyc}>
-        <Text style={styles.optionText}>Terminos y Condiciones</Text>
+        <Text style={styles.optionText}>Términos y Condiciones</Text>
         <ArrowRight color={colors.lightGreyrows} />
       </TouchableOpacity>
-
-      {/* Botón Cerrar sesión */}
       <TouchableOpacity style={styles.option} onPress={() => setIsModalVisible(true)}>
         <Text style={styles.optionText}>Cerrar sesión</Text>
         <LogOutIcon color={colors.lightGreyrows} />
       </TouchableOpacity>
 
-      {/* Modal de Confirmación */}
       <Modal
         animationType="slide"
-        transparent={true}
+        transparent
         visible={isModalVisible}
         onRequestClose={() => setIsModalVisible(false)}
       >
@@ -101,58 +113,46 @@ export default function Ajustes() {
               >
                 <Text style={styles.modalButtonTextCancel}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.confirmButton]}
-                onPress={handleLogout}
-              >
+              <TouchableOpacity style={[styles.modalButton, styles.confirmButton]} onPress={handleLogout}>
                 <Text style={styles.modalButtonText}>Cerrar Sesión</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
-
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  starsContainer: { 
-    flexDirection: 'row',  // Alinea los elementos en fila
-    alignItems: 'center',  // Centra verticalmente
+  starsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 10,
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
   },
-
   container: {
     flex: 1,
     backgroundColor: colors.white,
     paddingHorizontal: 20,
     paddingTop: 120,
   },
-  header: {
-    fontSize: 28,
-    fontWeight: "600",
-    color: colors.black,
-    marginBottom: 30,
-    textAlign: 'center',  // Centrado del encabezado
-  },
   profileContainer: {
-    alignItems: 'center',  // Centra el contenido en el eje horizontal
+    alignItems: "center",
     marginBottom: 30,
   },
   profileImage: {
     width: 100,
     height: 100,
-    borderRadius: 35,  // Hace que la imagen sea circular
+    borderRadius: 35,
     backgroundColor: colors.lightBlue,
-    marginBottom: 10, 
-    borderWidth:2,
-    borderColor:colors.lightGrey // Espacio entre la imagen y los textos
+    marginBottom: 10,
+    borderWidth: 2,
+    borderColor: colors.lightGrey,
   },
   profileName: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.black,
     marginBottom: 5,
   },
@@ -161,19 +161,10 @@ const styles = StyleSheet.create({
     color: colors.grey,
     marginBottom: 15,
   },
-  editButton: {
-    backgroundColor: colors.blue,
-    borderRadius: 20,
-    padding: 10,
-  },
-  editButtonText: {
-    color: colors.white,
-    fontWeight: 'bold',
-  },
   option: {
-    flexDirection: 'row',   
-    alignContent: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignContent: "center",
+    justifyContent: "space-between",
     backgroundColor: colors.white,
     borderBottomColor: colors.lightGrey100,
     borderBottomWidth: 1,
@@ -184,26 +175,24 @@ const styles = StyleSheet.create({
   optionText: {
     fontSize: 16,
     color: colors.black,
-    fontWeight: '500',
+    fontWeight: "500",
   },
-
-  /* Estilos del Modal */
   modalOverlay: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   modalContainer: {
-    width: '80%',
+    width: "80%",
     padding: 26,
     backgroundColor: colors.white,
     borderRadius: 10,
-    alignItems: 'center',
+    alignItems: "center",
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.black,
     marginBottom: 10,
   },
@@ -211,18 +200,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.grey,
     marginBottom: 20,
-    textAlign: 'center',
+    textAlign: "center",
   },
   modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
   },
   modalButton: {
-    width: '45%',
+    width: "45%",
     paddingVertical: 10,
     borderRadius: 5,
-    alignItems: 'center',
+    alignItems: "center",
   },
   cancelButton: {
     backgroundColor: colors.white,
@@ -233,17 +222,15 @@ const styles = StyleSheet.create({
   confirmButton: {
     backgroundColor: colors.blue,
     borderRadius: 10,
-
   },
   modalButtonText: {
     color: colors.white,
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
-  modalButtonTextCancel:
-  {
+  modalButtonTextCancel: {
     color: colors.blue,
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });

@@ -41,3 +41,12 @@ export const StarIcon: React.FC<IconProps> = (props) => (
 export const CameraIcon: React.FC<IconProps> = (props) => (
   <FontAwesome5 name="camera" size={24} color="black" {...props} />
 );
+export const EyeIcon = ({ visible, size = 24, color = "black" }: { visible: boolean; size?: number; color?: string }) => {
+  return (
+    <MaterialIcons
+      name={visible ? "visibility-off" : "visibility"}
+      size={size}
+      color={color}
+    />
+  );
+};

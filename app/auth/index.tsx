@@ -1,27 +1,19 @@
 import React, { useState, useEffect } from "react";
-import { 
-  View, 
-  Text, 
-  TextInput, 
-  TouchableOpacity, 
-  StyleSheet, 
-  Alert, 
-  Image 
-} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../context/authContext/AuthContext";
-import { MaterialIcons } from "@expo/vector-icons";
-import colors from "../../styles/Colors"; // Usando los colores definidos
+import { EyeIcon } from "../../components/Icons";
+import colors from "../../styles/Colors"; 
 
 const LoginScreen = () => {
   const router = useRouter();
-  const { login, userRole } = useAuth(); // Accediendo al método login y userRole desde el contexto
+  const { login, userRole } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<{ email?: string; password?: string }>({});
+  const [errorMessage, setErrorMessage] = useState<{ email?: string; password?: string; general?: string }>({});
 
-  // useEffect para redirigir según userRole cuando este cambie
+  //Redireccion dependiendo del rol del usuario
   useEffect(() => {
     if (userRole) {
       if (userRole === 'Conductor') {
@@ -40,51 +32,54 @@ const LoginScreen = () => {
   };
 
   const handleLogin = async () => {
-    let errors: { email?: string; password?: string } = {};
+    let errors: { email?: string; password?: string; general?: string } = {};
 
+    // Validaciones email y contraseña
     if (!email) {
       errors.email = "El correo es obligatorio.";
     } else if (!validateEmail(email)) {
       errors.email = "Formato de email inválido.";
     }
-
     if (!password) {
       errors.password = "La contraseña es obligatoria.";
     } else if (password.length < 6) {
       errors.password = "La contraseña debe tener al menos 6 caracteres.";
     }
-
     setErrorMessage(errors);
 
     if (Object.keys(errors).length > 0) return;
 
     try {
-      await login(email, password);  // Solo login aquí, no redirigimos aquí
-      Alert.alert("Éxito", "Usuario ingresado correctamente.");
+      await login(email, password);  
     } catch (error: any) {
-      Alert.alert("Error", getErrorMessage(error.code));
-    }
-  };
+      // Reiniciar errores previos
+      let loginErrors: { email?: string; password?: string; general?: string } = {};
 
-  const getErrorMessage = (errorCode: string) => {
-    switch (errorCode) {
-      case "auth/invalid-email":
-        return "Formato de email inválido.";
-      case "auth/user-not-found":
-        return "Usuario no encontrado.";
-      case "auth/wrong-password":
-        return "Contraseña incorrecta.";
-      default:
-        return "Ocurrió un error. Inténtalo de nuevo.";
+      // Según el código de error de Firebase, asignar mensaje a email o password
+      switch (error.code) {
+        case "auth/invalid-email":
+          loginErrors.email = "Formato de email inválido.";
+          break;
+        case "auth/user-not-found":
+          loginErrors.email = "Usuario no encontrado.";
+          break;
+        case "auth/wrong-password":
+          loginErrors.password = "Contraseña incorrecta.";
+          break;
+        
+        default:
+          loginErrors.general = "Usuario o contraseña incorrectos.";
+          break;
+      }
+
+      setErrorMessage(loginErrors);
     }
   };
 
   return (
     <View style={styles.container}>
-      <View style={styles.imageContainer}>
-        {/* <Image source={require("../path_to_your_image")} style={styles.image} /> */}
-      </View>
-
+     
+    
       <Text style={styles.greeting}>Iniciar Sesión</Text>
 
       <TextInput
@@ -113,27 +108,33 @@ const LoginScreen = () => {
           value={password}
           onChangeText={setPassword}
         />
-         <TouchableOpacity>
-           <Text style={styles.forgotPasswordText}>¿Olvidaste tu contraseña?</Text>
-         </TouchableOpacity>
+        
 
         <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
-          <MaterialIcons name={showPassword ? "visibility-off" : "visibility"} size={24} color={colors.grey} />
+            <EyeIcon visible={showPassword} size={24} color={colors.grey} />
         </TouchableOpacity>
       </View>
       {errorMessage.password && <Text style={styles.errorText}>{errorMessage.password}</Text>}
 
-      <TouchableOpacity onPress={handleLogin} style={styles.mainButton}>
-        <Text style={styles.mainButtonText}>Entrar</Text>
-      </TouchableOpacity>
+      {/* Mensaje general de error */}
+      {errorMessage.general && (
+        <Text style={[styles.errorText, { textAlign: "center", marginBottom: 10 }]}>
+          {errorMessage.general}
+        </Text>
+      )}
+        <TouchableOpacity>
+          <Text style={styles.forgotPasswordText}>¿Olvidaste tu contraseña?</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={handleLogin} style={styles.mainButton}>
+          <Text style={styles.mainButtonText}>Entrar</Text>
+        </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => router.push("/auth/Register")} style={styles.toggleContainer}>
-        <Text style={styles.toggleText}>
+        <TouchableOpacity onPress={() => router.push("/auth/Register")} style={styles.toggleContainer}>
+          <Text style={styles.toggleText}>
           ¿No tienes cuenta?{" "}
           <Text style={styles.toggleTextHighlight}>Regístrate</Text>
-        </Text>
+         </Text>
       </TouchableOpacity>
-
     </View>
   );
 };
@@ -148,7 +149,7 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     width: "100%",
-    height: 200, // Ajusta el tamaño de la imagen
+    height: 200, 
     marginBottom: 20,
     justifyContent: "center",
     alignItems: "center",
@@ -156,12 +157,12 @@ const styles = StyleSheet.create({
   image: {
     width: "100%",
     height: "100%",
-    resizeMode: "contain",  // Para que la imagen se ajuste bien sin distorsionarse
+    resizeMode: "contain",  
   },
   greeting: {
     fontSize: 28,
     fontWeight: "600",
-    color: colors.black, // Título en negro
+    color: colors.black, 
     marginBottom: 40,
     textAlign: "center",
   },
@@ -227,5 +228,4 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
   },
 });
-
 export default LoginScreen;
