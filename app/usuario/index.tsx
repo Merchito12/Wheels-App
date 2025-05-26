@@ -106,30 +106,48 @@ export default function Index() {
   // Carga viajes por iniciar con listener
   useEffect(() => {
     if (!user) return;
-
+  
     setLoading(true);
-
+  
     const viajesRef = collection(db, "viajes");
     const q = query(viajesRef, where("estado", "==", "por iniciar"));
-
+  
+    const obtenerFotoPerfilConductor = async (uid: string): Promise<string | null> => {
+      try {
+        const userDoc = await getDoc(doc(db, 'users', uid));
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          return data.profilePhotoURL || null;
+        }
+      } catch (error) {
+        console.error(`Error obteniendo foto de perfil del conductor ${uid}:`, error);
+      }
+      return null;
+    };
+  
     const unsubscribe = onSnapshot(
       q,
       async (querySnapshot) => {
         try {
           const viajesDocs = querySnapshot.docs;
-
+  
           const viajesConductor = await Promise.all(
             viajesDocs.map(async (docSnap) => {
               const viaje: { id: string; idConductor?: string; [key: string]: any } = { id: docSnap.id, ...docSnap.data() };
-
+  
               if (viaje.idConductor) {
                 const docRef = doc(db, "users", viaje.idConductor);
                 const docSnapUser = await getDoc(docRef);
                 if (docSnapUser.exists()) {
                   const conductorData = docSnapUser.data();
+  
+                  // Usar tu función para obtener la foto perfil
+                  const perfilPhotoURL = await obtenerFotoPerfilConductor(viaje.idConductor);
+  
                   return {
                     ...viaje,
                     conductorNombre: conductorData.name || "Sin nombre",
+                    conductorProfilePhoto: perfilPhotoURL,
                     conductorCarPhoto: conductorData.car?.photoURL || null,
                   };
                 }
@@ -137,11 +155,12 @@ export default function Index() {
               return {
                 ...viaje,
                 conductorNombre: "Sin conductor",
+                conductorProfilePhoto: null,
                 conductorCarPhoto: null,
               };
             })
           );
-
+  
           setViajesPorIniciar(viajesConductor);
         } catch (error) {
           console.error("Error procesando viajes por iniciar:", error);
@@ -154,9 +173,10 @@ export default function Index() {
         setLoading(false);
       }
     );
-
+  
     return () => unsubscribe();
   }, [user]);
+  
 
   async function obtenerConductorPorId(idConductor: string) {
     setCargandoConductor(true);
@@ -306,11 +326,23 @@ export default function Index() {
                 ) : (
                   <Image source={require("../../assets/images/carImage.png")} style={styles.image} />
                 )}
-
-                <Text style={styles.conductorName}>{viaje.conductorNombre}</Text>
-                <Text style={styles.tripName}>{viaje.direccion}</Text>
+            
+                <Text>
+                  <Text style={{ fontWeight: "bold" }}>
+                    {viaje.haciaLaU ? "Desde:" : "Hacia:"}{" "}
+                  </Text>
+                  <Text style={styles.tripName}>{viaje.direccion}</Text>
+                </Text>
+            
+                <View style={styles.conductorContainer}>
+                  {viaje.conductorProfilePhoto && (
+                    <Image source={{ uri: viaje.conductorProfilePhoto }} style={styles.conductorImage} />
+                  )}
+                  <Text style={styles.conductorName}>{viaje.conductorNombre}</Text>
+                </View>
+            
                 <Text style={styles.tripPrice}>COP {viaje.precio}</Text>
-
+            
                 <View style={styles.row}>
                   <Ionicons name="calendar-outline" size={16} color={colors.grey} />
                   <Text style={styles.dateText}> {viaje.fecha}</Text>
@@ -319,12 +351,13 @@ export default function Index() {
                   <Ionicons name="time-outline" size={16} color={colors.grey} />
                   <Text style={styles.dateText}> {viaje.horaSalida}</Text>
                 </View>
-
+            
                 <TouchableOpacity style={styles.reserveButton} onPress={() => abrirModal(viaje)}>
                   <Text style={styles.reserveButtonText}>Reservar</Text>
                 </TouchableOpacity>
               </View>
             ))
+            
           )}
         </View>
       </ScrollView>
@@ -439,7 +472,6 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     borderRadius: 10,
     padding: 10,
-    alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
     borderColor: colors.lightGrey,
@@ -449,6 +481,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
+  
   image: {
     width: "100%",
     height: 100,
@@ -458,15 +491,14 @@ const styles = StyleSheet.create({
   },
   tripName: {
     fontSize: 16,
-    fontWeight: "600",
     marginBottom: 5,
   },
   conductorName: {
     fontSize: 14,
-    color: colors.darkGrey,
+    color: colors.grey,
+    marginTop:8,
     marginBottom: 8,
-    fontWeight: "600",
-    textAlign: "center",
+    fontWeight: "500",
   },
   tripPrice: {
     fontSize: 14,
@@ -479,6 +511,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginTop: 10,
     marginBottom: 5,
+    alignItems: "center",
   },
   reserveButtonText: {
     color: colors.white,
@@ -500,4 +533,17 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     marginTop: 30,
   },
+  conductorContainer: {
+    flexDirection: "row",
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  
+  conductorImage: {
+    width: 32,
+    height: 32,
+    borderRadius: 16, // círculo
+    marginRight: 8,
+  },
+  
 });

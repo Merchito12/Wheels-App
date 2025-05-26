@@ -29,6 +29,8 @@ export default function ViajeDetalleScreen() {
   const [fotoCarroConductor, setFotoCarroConductor] = useState<string | null>(null);
   const [nombreConductor, setNombreConductor] = useState<string | null>(null);
   const [fotoPerfilConductor, setFotoPerfilConductor] = useState<string | null>(null);
+  const [placaCarroConductor, setPlacaCarroConductor] = useState<string | null>(null);
+
 
 
 
@@ -45,6 +47,19 @@ export default function ViajeDetalleScreen() {
     }
     return null;
   };
+  const obtenerPlacaCarroConductor = async (uid: string): Promise<string | null> => {
+    try {
+      const userDoc = await getDoc(doc(db, 'users', uid));
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        return data.car?.plate || null;
+      }
+    } catch (error) {
+      console.error(`Error obteniendo placa del carro del conductor ${uid}:`, error);
+    }
+    return null;
+  };
+  
 
   const obtenerNombreConductor = async (uid: string): Promise<string | null> => {
     try {
@@ -79,19 +94,23 @@ useEffect(() => {
       setNombreConductor(null);
       setFotoCarroConductor(null);
       setFotoPerfilConductor(null);
+      setPlacaCarroConductor(null);
       return;
     }
-    const [nombre, fotoCarro, fotoPerfil] = await Promise.all([
+    const [nombre, fotoCarro, fotoPerfil, placa] = await Promise.all([
       obtenerNombreConductor(viajeEnCurso.idConductor),
       obtenerFotoCarroConductor(viajeEnCurso.idConductor),
       obtenerFotoPerfilConductor(viajeEnCurso.idConductor),
+      obtenerPlacaCarroConductor(viajeEnCurso.idConductor),
     ]);
     setNombreConductor(nombre);
     setFotoCarroConductor(fotoCarro);
     setFotoPerfilConductor(fotoPerfil);
+    setPlacaCarroConductor(placa);
   }
   cargarDatosConductor();
 }, [viajeEnCurso]);
+
 
   
   // useEffect para cargar el nombre del conductor
@@ -201,7 +220,7 @@ useEffect(() => {
     <>
       {/* HEADER */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.replace('/usuario')} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.replace('/usuario')} >
           <Ionicons name="arrow-back" size={28} color={colors.blue} />
         </TouchableOpacity>
         <View style={styles.headerTextContainer}>
@@ -222,22 +241,31 @@ useEffect(() => {
         {/* INFORMACIÓN DEL VIAJE */}
         <View style={styles.infoContainer}>
         <View style={styles.conductorContainer}>
-        {fotoPerfilConductor && (
-          <Image
-            source={{ uri: fotoPerfilConductor }}
-            style={styles.conductorPerfilImage}
-            resizeMode="cover"
-          />
-        )}
-        {fotoCarroConductor && (
-          <Image
-            source={{ uri: fotoCarroConductor }}
-            style={styles.conductorCarroImage}
-            resizeMode="cover"
-          />
-        )}
-        <Text style={styles.conductorNombre}>{nombreConductor || 'Conductor'}</Text>
-      </View>
+          {fotoPerfilConductor && (
+            <Image
+              source={{ uri: fotoPerfilConductor }}
+              style={styles.conductorPerfilImage}
+              resizeMode="cover"
+            />
+          )}
+
+          <View style={styles.infoConductorContainer}>
+            <Text style={styles.conductorNombre}>{nombreConductor || 'Conductor'}</Text>
+            {placaCarroConductor && (
+              <Text style={styles.placaCarro}>{placaCarroConductor}</Text>
+            )}
+          </View>
+
+          {fotoCarroConductor && (
+            <Image
+              source={{ uri: fotoCarroConductor }}
+              style={styles.conductorCarroImage}
+              resizeMode="cover"
+            />
+          )}
+        </View>
+
+
 
           <View style={styles.infoRow}>
             <Ionicons name="cash-outline" size={20} color={colors.grey} />
@@ -360,10 +388,52 @@ const styles = StyleSheet.create({
     paddingTop: 90,
     paddingBottom: 30,
   },
-  backButton: {
-    marginRight: 10,
-    padding: 5,
+  conductorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    position: 'relative', // importante para posición absoluta del carro
   },
+  
+  conductorPerfilImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    zIndex: 2,
+  },
+  
+  conductorCarroImage: {
+    width: 90,
+    height: 45,
+    borderRadius: 8,
+    position: 'absolute',
+    left: 40,  // Ajusta para que quede parcialmente detrás de la foto perfil
+    top: 10,   // Centrado vertical aproximado
+    zIndex: 1,
+    resizeMode: 'cover',
+  },
+  
+  infoConductorContainer: {
+    flex: 1,
+    marginLeft: 40,
+    paddingRight: 20,
+    alignItems: 'flex-end', // Esto alinea texto a la derecha
+  },
+    
+  conductorNombre: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.black,
+  },
+  
+  placaCarro: {
+    fontSize: 14,
+    color: colors.darkGrey,
+    marginTop: 2,
+    fontStyle: 'italic',
+  },
+  
+
   headerTextContainer: {
     flex: 1,
   },
@@ -378,6 +448,8 @@ const styles = StyleSheet.create({
     marginTop: 2,
     opacity: 0.85,
   },
+
+  
   container: {
     flex: 1,
     backgroundColor: colors.white,
@@ -390,16 +462,19 @@ const styles = StyleSheet.create({
   },
   infoContainer: {
     padding: 20,
+    marginTop: 30,
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 10,
+    
   },
   infoText: {
     marginLeft: 8,
     fontSize: 14,
     color: colors.grey,
+    
   },
   subtitulo: {
     fontSize: 16,
@@ -448,7 +523,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   carImage: {
-    width: 200,
+    width: 100,
     height: 120,
     borderRadius: 10,
   },
@@ -491,41 +566,19 @@ const styles = StyleSheet.create({
   listConatainer: {
     paddingHorizontal: 20,
   },
-  conductorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 15,
-    marginBottom: 10,
-  },
-
-  conductorPerfilImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginRight: 12,
-    borderWidth: 1,
-  },
-  conductorCarroImage: {
-    width: 70,
-    height: 45,
-    borderRadius: 8,
-    marginRight: 12,
-    marginLeft: -32,
-    marginTop: 5,
-    marginBottom: 5,
-    zIndex: 1,
-  },
-  conductorNombre: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: colors.black,
-  },
+  
   
   conductorImage: {
     width: 50,
     height: 50,
     borderRadius: 25,
     marginRight: 12,
+  },
+  backButton: {
+    position: 'absolute',
+    left: 20,
+    top: 50,
+    zIndex: 1000,
   },
 
   

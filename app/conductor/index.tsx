@@ -180,7 +180,14 @@ export default function Viajes() {
                 <MapComponent viaje={viaje} />
               </View>
 
-                <Text style={styles.viajeCiudad}>{viaje.direccion}</Text>
+              <Text>
+              <Text style={{ fontWeight: 'bold'}}>
+                {viaje.haciaLaU ? "Desde:" : "Hacia:"}{" "}
+              </Text>
+              <Text style={styles.viajeCiudad}>{viaje.direccion}</Text>
+            </Text>
+
+
 
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
                   <Ionicons name="time-outline" size={14} color="#555" />
@@ -378,7 +385,6 @@ const styles = StyleSheet.create({
   },
   
   viajeCiudad: {
-    fontWeight: "bold",
     fontSize: 16,
     marginBottom: 4,
   },

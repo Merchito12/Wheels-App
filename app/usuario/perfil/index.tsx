@@ -7,6 +7,7 @@ import {
   Image,
   Modal,
   Alert,
+  ScrollView,
 } from "react-native";
 import colors from "@/styles/Colors";
 import { ArrowRight, LogOutIcon, StarIcon } from "@/components/Icons";
@@ -57,7 +58,7 @@ export default function Ajustes() {
   };
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container}>
       <View style={styles.profileContainer}>
         <Image
           source={{ uri: profilePhotoURL || "https://via.placeholder.com/100" }}
@@ -120,7 +121,7 @@ export default function Ajustes() {
           </View>
         </View>
       </Modal>
-    </View>
+    </ScrollView>
   );
 }
 
