@@ -45,8 +45,9 @@ interface ViajeContextProps {
   solicitudesDePuntos: () => Promise<{ viaje: Viaje; punto: Punto }[]>;
   solicitudesDePuntosPorEstado: (
     viajeId: string,
-    estado: EstadoPunto
-  ) => Promise<Punto[]>;
+    estado: EstadoPunto,
+    callback: (puntosFiltrados: Punto[]) => void
+  ) => () => void;
   obtenerPuntosPorEstado: (
     estado: EstadoPunto
   ) => Promise<{ viajeId: string; viajeDireccion: string; punto: Punto }[]>;
@@ -145,16 +146,25 @@ export const ViajeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return solicitudes;
   };
 
-  const solicitudesDePuntosPorEstado = async (
+  const solicitudesDePuntosPorEstado= (
     viajeId: string,
-    estado: EstadoPunto
+    estado: EstadoPunto,
+    callback: (puntosFiltrados: Punto[]) => void
   ) => {
     const viajeDoc = doc(db, "viajes", viajeId);
-    const viajeSnap = await getDoc(viajeDoc);
-    if (!viajeSnap.exists()) return [];
-
-    const viaje = viajeSnap.data() as Viaje;
-    return viaje.puntos.filter((p) => p.estado === estado);
+  
+    const unsubscribe = onSnapshot(viajeDoc, (docSnap) => {
+      if (!docSnap.exists()) {
+        callback([]);
+        return;
+      }
+  
+      const viaje = docSnap.data() as Viaje;
+      const puntosFiltrados = viaje.puntos.filter((p) => p.estado === estado);
+      callback(puntosFiltrados);
+    });
+  
+    return unsubscribe; // para cancelar el listener
   };
 
   const obtenerPuntosPorEstado = async (
@@ -186,38 +196,40 @@ export const ViajeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const obtenerPuntosPorEstadoYEstadoViaje = async (
-    estadoPunto: EstadoPunto,
-    estadoViaje: EstadoViaje
-  ): Promise<{ viajeId: string; viajeDireccion: string; punto: Punto }[]> => {
-    if (!user) return [];
+  estadoPunto: EstadoPunto,
+  estadoViaje: EstadoViaje
+): Promise<{ viajeId: string; viajeDireccion: string; punto: Punto }[]> => {
+  if (!user) return [];
 
-    const viajesRef = collection(db, "viajes");
-    const q = query(
-      viajesRef,
-      where("idConductor", "==", user.uid),
-      where("estado", "==", estadoViaje)
-    );
-    const querySnapshot = await getDocs(q);
+  const viajesRef = collection(db, "viajes");
+  const q = query(
+    viajesRef,
+    where("idConductor", "==", user.uid),
+    where("estado", "==", estadoViaje)
+  );
 
-    const resultados: { viajeId: string; viajeDireccion: string; punto: Punto }[] = [];
+  const querySnapshot = await getDocs(q);
 
-    querySnapshot.forEach((doc) => {
-      const data = doc.data() as Omit<Viaje, "id">;
-      const viaje = { id: doc.id, ...data };
-      viaje.puntos
-        .filter((p) => p.estado === estadoPunto)
-        .forEach((punto) => {
-          resultados.push({
-            viajeId: viaje.id,
-            viajeDireccion: viaje.direccion,
-            punto,
-          });
+  const resultados: { viajeId: string; viajeDireccion: string; punto: Punto }[] = [];
+
+  querySnapshot.forEach((doc) => {
+    const data = doc.data() as Omit<Viaje, "id"> & { puntos: Punto[] };
+    const viaje = { id: doc.id, ...data };
+    viaje.puntos
+      .filter((p) => p.estado === estadoPunto)
+      .forEach((punto) => {
+        resultados.push({
+          viajeId: viaje.id,
+          viajeDireccion: viaje.direccion,
+          punto,
         });
-    });
+      });
+  });
 
-    return resultados;
-  };
+  return resultados;
+};
 
+  
   const actualizarEstadoPunto = async (
     viajeId: string,
     idCliente: string,

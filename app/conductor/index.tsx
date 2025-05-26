@@ -16,6 +16,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { EstadoPunto, useCliente } from "@/context/viajeContext/viajeClienteContext";
 import { useViajeSeleccionado } from '../../context/viajeContext/ViajeSeleccionadoContext';
 import MapComponent from "@/components/shared/Map";
+import { onSnapshot, query, collection, where } from "firebase/firestore";
+import { db } from "../../utils/FirebaseConfig";
+
 
 
 interface Punto {
@@ -75,11 +78,27 @@ export default function Viajes() {
   useEffect(() => {
     if (!user) return;
     setLoadingEnCurso(true);
-    const filtrados = viajes.filter((v) => v.estado === "en curso");
-    setViajesEnCurso(filtrados);
-    setLoadingEnCurso(false);
-  }, [viajes, user]);
-
+  
+    const q = query(
+      collection(db, "viajes"),
+      where("estado", "==", "en curso")
+    );
+  
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const viajesEnCursoData: Viaje[] = [];
+      querySnapshot.forEach((doc) => {
+        viajesEnCursoData.push({ id: doc.id, ...doc.data() } as Viaje);
+      });
+      setViajesEnCurso(viajesEnCursoData);
+      setLoadingEnCurso(false);
+    }, (error) => {
+      console.error("Error listening viajes en curso:", error);
+      setLoadingEnCurso(false);
+    });
+  
+    return () => unsubscribe(); // cleanup al desmontar
+  }, [user]);
+  
   // Obtener puntos pendientes
   useEffect(() => {
     async function fetchPendientesPorIniciar() {
