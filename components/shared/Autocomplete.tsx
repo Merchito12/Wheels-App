@@ -71,7 +71,7 @@ export default function AutocompleteLugar({
   return (
     <View style={styles.wrapper}>
       <TextInput
-        placeholder="Buscar lugar..."
+        placeholder="Ingresa tu punto..."
         style={styles.input}
         value={query}
         onChangeText={buscarSugerencias}

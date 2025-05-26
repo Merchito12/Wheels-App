@@ -11,6 +11,9 @@ import { useAuth } from "@/context/authContext/AuthContext";
 import { useViajes } from "../../context/viajeContext/ViajeConductorContext";
 import colors from "@/styles/Colors";
 import { Ionicons } from "@expo/vector-icons";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { db } from "@/utils/FirebaseConfig";
+
 
 interface Punto {
   estado: string;

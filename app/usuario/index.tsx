@@ -341,7 +341,10 @@ export default function Index() {
                   <Text style={styles.conductorName}>{viaje.conductorNombre}</Text>
                 </View>
             
-                <Text style={styles.tripPrice}>COP {viaje.precio}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                <Ionicons name="cash-outline" size={16} color={colors.grey} />
+                <Text style={[styles.tripPrice, { marginLeft: 4 }]}>COP {viaje.precio}</Text>
+              </View>
             
                 <View style={styles.row}>
                   <Ionicons name="calendar-outline" size={16} color={colors.grey} />
@@ -380,7 +383,7 @@ export default function Index() {
         cargandoConductor={cargandoConductor}
         onAceptar={() => {
           setModalVisible(false);
-          alert("¡Viaje reservado!");
+          alert("¡Punto Solicitado!");
         }}
       />
     </View>
@@ -496,13 +499,11 @@ const styles = StyleSheet.create({
   conductorName: {
     fontSize: 14,
     color: colors.grey,
-    marginTop:8,
     marginBottom: 8,
     fontWeight: "500",
   },
   tripPrice: {
     fontSize: 14,
-    marginBottom: 15,
   },
   reserveButton: {
     backgroundColor: colors.blue,
@@ -536,12 +537,12 @@ const styles = StyleSheet.create({
   conductorContainer: {
     flexDirection: "row",
     marginTop: 8,
-    marginBottom: 8,
+    marginBottom: 25,
   },
   
   conductorImage: {
-    width: 32,
-    height: 32,
+    width: 22,
+    height: 22,
     borderRadius: 16, // círculo
     marginRight: 8,
   },

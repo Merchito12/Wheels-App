@@ -96,8 +96,7 @@ export default function ModalReservaViaje({
 
                 <View style={styles.nameSection}>
                   <Text style={styles.nameText}>{conductorInfo?.name || "No disponible"}</Text>
-                  <Text style={styles.ratingNumber}>5</Text>
-                  <Ionicons name="star" size={18} color="#FFD700" />
+                  
                 </View>
 
                 <View style={styles.rowInfoContainer}>
@@ -122,7 +121,7 @@ export default function ModalReservaViaje({
                       <Image
                         source={{ uri: conductorInfo.car.photoURL }}
                         style={styles.carPhoto}
-                        resizeMode="cover"
+                        resizeMode="contain"
                       />
                     ) : (
                       <View
@@ -141,26 +140,37 @@ export default function ModalReservaViaje({
                   </View>
                 </View>
 
+                <View style={styles.meetingPointSection}>
+                  <Text style={styles.meetingPointText}>
+                    <Text style={{ fontWeight: 'bold'}}>
+                                    {viajeSeleccionado.haciaLaU ? "Viaje desde:" : "Viaje hacia:"}{" "}
+                                  </Text>
+                    {viajeSeleccionado?.direccion || "Dirección no disponible"}
+                  </Text>
+                  
+                </View>
+
+                <View style={styles.mapContainer}>
+                  <MapComponent 
+                    viaje={viajeSeleccionado} 
+                    puntosAceptados={viajeSeleccionado?.puntos.filter((p: { estado: string }) => p.estado === "aceptado")} 
+                  />
+                </View>
+
+
                 {/* Input para sugerencia */}
                 <View style={styles.sugerenciaContainer}>
                 <AutocompleteLugar
                   value={sugerencia}
                   onSelect={(direccion: string) => setSugerencia(direccion)}
                 />
+
+
               </View>
 
 
-                <View style={styles.meetingPointSection}>
-                  <Text style={styles.meetingPointText}>
-                    Punto de encuentro: {viajeSeleccionado?.direccion || "Dirección no disponible"}
-                  </Text>
-                  <View style={styles.iconRow}>
-                    <Ionicons name="navigate" size={24} color={colors.blue} />
-                    <Ionicons name="map" size={24} color={colors.black} />
-                  </View>
-                </View>
+                
 
-                <MapComponent viaje={viajeSeleccionado} puntosAceptados={viajeSeleccionado?.puntos.filter((p: { estado: string; }) => p.estado === "aceptado")} />
 
 
                 <TouchableOpacity
@@ -171,7 +181,7 @@ export default function ModalReservaViaje({
                   {enviando ? (
                     <ActivityIndicator color={colors.white} />
                   ) : (
-                    <Text style={styles.acceptButtonText}>Aceptar</Text>
+                    <Text style={styles.acceptButtonText}>Solicitar Punto</Text>
                   )}
                 </TouchableOpacity>
               </>
@@ -197,7 +207,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     borderRadius: 20,
     padding: 20,
-    width: "95%",
+    width: "90%",
     maxHeight: "90%",
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 6 },
@@ -215,22 +225,20 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   profilePhoto: {
-    width: 100,
-    height: 100,
+    width: 70,
+    height: 70,
     borderRadius: 50,
-    borderWidth: 2,
-    borderColor: colors.blue,
+  
   },
   nameSection: {
     alignItems: "center",
-    marginBottom: 15,
     flexDirection: "row",
     justifyContent: "center",
     flexWrap: "wrap",
     gap: 10,
   },
   nameText: {
-    fontSize: 20,
+    fontSize: 14,
     fontWeight: "700",
     color: colors.black,
   },
@@ -255,12 +263,9 @@ const styles = StyleSheet.create({
   },
   carInfoBox: {
     flex: 1,
-    borderWidth: 1,
-    borderColor: colors.grey,
     borderRadius: 10,
     paddingVertical: 8,
     paddingHorizontal: 15,
-    alignItems: "center",
     marginLeft: 10,
   },
   carInfoText: {
@@ -270,8 +275,8 @@ const styles = StyleSheet.create({
   },
   carInfoPlate: {
     fontWeight: "700",
-    fontSize: 20,
-    color: colors.blue,
+    fontSize: 10,
+    color: colors.grey,
   },
   meetingPointSection: {
     flexDirection: "row",
@@ -281,8 +286,8 @@ const styles = StyleSheet.create({
   },
   meetingPointText: {
     fontWeight: "600",
-    fontSize: 16,
-    color: colors.black,
+    fontSize: 13,
+    color: colors.darkGrey,
     flex: 1,
   },
   iconRow: {
@@ -290,13 +295,7 @@ const styles = StyleSheet.create({
     width: 60,
     justifyContent: "space-between",
   },
-  mapImage: {
-    width: "100%",
-    height: 120,
-    borderRadius: 15,
-    marginBottom: 20,
-    backgroundColor: "#ccc",
-  },
+
   sugerenciaContainer: {
     marginBottom: 15,
   },
@@ -311,15 +310,19 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
   },
   acceptButton: {
-    backgroundColor: colors.blue,
-    paddingVertical: 14,
-    borderRadius: 30,
+    backgroundColor: colors.white,
+    paddingVertical: 15,
+    borderRadius: 20,
     alignItems: "center",
+    marginTop: 20,
+    borderWidth: 1,
+    borderColor: colors.blue,
   },
   acceptButtonText: {
-    color: colors.white,
+    color: colors.blue,
     fontWeight: "bold",
     fontSize: 20,
+
   },
   row: {
     flexDirection: "row",
@@ -337,9 +340,11 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   mapContainer: {
-    width: '80%',  // O el ancho que necesites
-    height: 200,    // O la altura que definas para el mapa
-    borderRadius: 10,  // opcional, si quieres bordes redondeados
-    overflow: 'hidden', // Muy importante para que nada se salga del borde
+    width: '100%',       // o el ancho que prefieras, puede ser '90%' o fijo
+    height: 200,         // altura reducida para que no ocupe mucho espacio
+    borderRadius: 10,
+    overflow: 'hidden',  // para que el mapa respete los bordes redondeados
+    marginBottom: 15,
   },
+  
 });
