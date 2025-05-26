@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-       "infoPlist": {
+      "infoPlist": {
         "NSUserNotificationUsageDescription": "La app usa notificaciones para avisarte 2 minutos antes de tu viaje."
       }
     },
@@ -25,6 +25,11 @@
       "bundler": "metro",
       "output": "single",
       "favicon": "./assets/images/favicon.png"
+    },
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
     },
     "plugins": [
       "expo-router",
@@ -42,6 +47,5 @@
     "experiments": {
       "typedRoutes": true
     }
-    
   }
 }
